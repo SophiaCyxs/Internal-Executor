@@ -1,0 +1,2064 @@
+print("[Arachnid] file loaded, parsing ok")
+-- Arachnid v9 | Delta skin | executor script (Luau) | no config files
+-- needs: loadstring, game:HttpGet | optional: gethui, readfile/writefile/isfile/makefolder/delfile/listfiles,
+--        getcustomasset, setclipboard, request, identifyexecutor, getclipboard (Delta lacks it)
+-- not built, no executor run on my end
+
+local K = {
+	hideDelta = true,
+	-- NEED: Delta's hash-named CoreGui child changes per build. dump: print each CoreGui:GetChildren() name in Delta
+	deltaHash = "808d84c4d3704a792c63f06ec2a9b7b2c52493b4c839a8a325bf5458a2ac0480",
+	folder = "arachnid_scripts", cache = "arachnid_cache", maxResults = 40,
+	logo = "rbxassetid://97431560101263",
+	icons = "https://raw.githubusercontent.com/Footagesus/Icons/refs/heads/main/lucide/dist/Icons.lua",
+	toggleKeys = { "RightShift", "RightControl", "Insert", "Home", "K", "P" },
+	-- NEED: real key providers. remote = getUrl + verifyUrl ({key} and {hwid} substituted, returns {"valid":true} or "true")
+	providers = {
+		{ id = "delta", name = "Delta Key",  key = "676767", hours = 0 },
+		{ id = "p1",    name = "Provider 1", getUrl = nil, verifyUrl = nil, okField = "valid", hours = 24 },
+		{ id = "p2",    name = "Provider 2", getUrl = nil, verifyUrl = nil, okField = "valid", hours = 24 },
+	},
+	-- NEED: verify these links, repos move. a bad link only errors that one tile.
+	quick = {
+		{ "Infinite Yield", 'loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source",true))()', "zap", "z", "admin commands" },
+		{ "Cobalt", 'loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau"))()', "radar", "c", "remote spy" },
+		{ "Dex", 'loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()', "folder-tree", "d", "game explorer" },
+		{ "Simple Spy", 'loadstring(game:HttpGet("https://raw.githubusercontent.com/78n/SimpleSpy/main/SimpleSpySource.lua"))()', "eye", "s", "remote spy" },
+		{ "Executor info", 'print("executor:", identifyexecutor and identifyexecutor() or "unknown")', "cpu", "i", "print executor" },
+		{ "Hello world", 'print("Hello, world!")', "play", ">", "test print" },
+	},
+	-- NEED: robloxscripts + haxhell have no public API I can verify. devtools > Network > XHR, copy JSON url, use {q} and {p}
+	endpoints = { robloxscripts = nil, haxhell = nil },
+}
+
+local function main()
+	print("[Arachnid] stage: start")
+	local Sv = setmetatable({}, { __index = function(t, k) local s = game:GetService(k) rawset(t, k, s) return s end })
+	local lp = Sv.Players.LocalPlayer
+	local G = (getgenv and getgenv()) or _G
+	if G.__ArachnidUnload then pcall(G.__ArachnidUnload) end
+	local function rgb(r, g, b) return Color3.fromRGB(r, g, b) end
+	local V2, WHITE = Vector2.new, Color3.new(1, 1, 1)
+
+	local S = {
+		theme = 1, glass = true, alpha = 0.35, tint = 0.5, grad = true, anim = true, notify = true, stream = false, blur = true,
+		speed = 1, thick = 2, wsize = 0.9, particles = true, pcount = 30, viz = true, cspeed = 1,
+		c1 = "8B5CF6", c2 = "38BDF8", key = "RightShift", bx = 190, by = 6, mythemes = {}, fav = {}, recent = {},
+	}
+	pcall(function()
+		if makefolder then for _, f in ipairs({ K.folder, K.cache }) do if not isfolder(f) then makefolder(f) end end end
+	end)
+
+	local C = {
+		bg = rgb(10, 10, 12), panel = rgb(16, 16, 19), card = rgb(26, 26, 31), hover = rgb(38, 38, 45), line = rgb(60, 60, 70),
+		text = rgb(236, 236, 242), sub = rgb(160, 160, 172), mute = rgb(104, 104, 118),
+		green = rgb(52, 211, 153), red = rgb(239, 68, 68), yellow = rgb(251, 191, 36), blue = rgb(96, 165, 250),
+	}
+	local TINTED = { bg = true, panel = true, card = true, hover = true, line = true }
+	local T = {}
+	for k in pairs(TINTED) do T[k] = C[k] end
+	local BASE = {
+		{ name = "Mono", c1 = rgb(240, 240, 244), c2 = rgb(110, 110, 124) },
+		{ name = "Violet", c1 = rgb(139, 92, 246), c2 = rgb(56, 189, 248) },
+		{ name = "Emerald", c1 = rgb(16, 185, 129), c2 = rgb(163, 230, 53) },
+		{ name = "Rose", c1 = rgb(244, 63, 94), c2 = rgb(251, 146, 60) },
+		{ name = "Ice", c1 = rgb(56, 189, 248), c2 = rgb(224, 242, 254) },
+		{ name = "Sunset", c1 = rgb(251, 146, 60), c2 = rgb(236, 72, 153) },
+		{ name = "Aurora", c1 = rgb(52, 211, 153), c2 = rgb(168, 85, 247) },
+		{ name = "Rainbow", c1 = rgb(255, 120, 120), c2 = rgb(120, 120, 255), rainbow = true },
+		{ name = "Custom", c1 = WHITE, c2 = WHITE, custom = true },
+	}
+	local CUSTOM = #BASE
+	local U = { conns = {}, binds = {}, glows = {}, accents = {}, hooks = {}, surfs = {}, roles = {}, A1 = C.text, A2 = C.mute, open = false,
+		TH = {}, IC = {}, pstat = {}, thumbCache = {}, thumbBusy = 0, game = { name = "Loading...", creator = "", icon = nil } }
+	local PG = {}
+	U.avatar = "rbxthumb://type=AvatarHeadShot&id=" .. lp.UserId .. "&w=150&h=150"
+	U.profileUrl = "https://www.roblox.com/users/" .. lp.UserId .. "/profile"
+
+	-- ===== helpers =====
+	function U.track(c) U.conns[#U.conns + 1] = c return c end
+	function U.new(cls, props, par)
+		local o = Instance.new(cls)
+		for k, v in pairs(props or {}) do o[k] = v end
+		if par then o.Parent = par end
+		return o
+	end
+	local new = U.new
+	function U.tw(o, props, t, cb, style)
+		if not S.anim then
+			for k, v in pairs(props) do o[k] = v end
+			if cb then task.defer(cb) end
+			return nil
+		end
+		local tween = Sv.TweenService:Create(o, TweenInfo.new(t or 0.2, style or Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props)
+		if cb then tween.Completed:Connect(function() cb() end) end
+		tween:Play()
+		return tween
+	end
+	function U.corner(r, p) return new("UICorner", { CornerRadius = UDim.new(0, r) }, p) end
+	function U.pad(l, r, t, b, p)
+		return new("UIPadding", { PaddingLeft = UDim.new(0, l), PaddingRight = UDim.new(0, r), PaddingTop = UDim.new(0, t), PaddingBottom = UDim.new(0, b) }, p)
+	end
+	function U.stroke(col, th, p) return new("UIStroke", { Color = col, Thickness = th or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, p) end
+	function U.lbl(txt, sz, col, props, par)
+		local p = props or {}
+		p.Text, p.TextSize, p.TextColor3, p.BackgroundTransparency = txt, sz, col, 1
+		p.Font = p.Font or Enum.Font.GothamMedium
+		p.TextXAlignment = p.TextXAlignment or Enum.TextXAlignment.Left
+		return new("TextLabel", p, par)
+	end
+	function U.roleOf(col) for k in pairs(TINTED) do if C[k] == col then return k end end end
+	function U.btn(txt, sz, bg, tc, props, par)
+		local p = props or {}
+		p.Text, p.TextSize, p.TextColor3, p.BackgroundColor3 = txt, sz, tc, bg
+		p.Font = p.Font or Enum.Font.GothamBold
+		p.AutoButtonColor, p.BorderSizePixel = false, 0
+		local b = new("TextButton", p, par)
+		U.corner(7, b)
+		local sc = new("UIScale", {}, b)
+		local role = U.roleOf(bg)
+		local e = role and { o = b, p = "BackgroundColor3", r = role, hov = false }
+		if e then U.roles[#U.roles + 1] = e b.BackgroundColor3 = T[role] end
+		local function base() return e and T[role] or bg end
+		b.MouseEnter:Connect(function() if e then e.hov = true end U.tw(b, { BackgroundColor3 = base():Lerp(WHITE, 0.12) }, 0.12) end)
+		b.MouseLeave:Connect(function() if e then e.hov = false end U.tw(b, { BackgroundColor3 = base() }, 0.12) U.tw(sc, { Scale = 1 }, 0.1) end)
+		b.MouseButton1Down:Connect(function() U.tw(sc, { Scale = 0.94 }, 0.08) end)
+		b.MouseButton1Up:Connect(function()
+			U.tw(sc, { Scale = 1 }, 0.18, nil, Enum.EasingStyle.Back)
+			task.delay(0.3, function() if e then e.hov = false end end)
+		end)
+		return b
+	end
+	function U.field(ph, par, props)
+		local p = props or {}
+		p.BackgroundColor3, p.Text, p.PlaceholderText, p.PlaceholderColor3 = T.card, "", ph, C.mute
+		p.TextColor3, p.TextSize, p.Font, p.ClearTextOnFocus, p.BorderSizePixel = C.text, 12, Enum.Font.GothamMedium, false, 0
+		p.TextXAlignment = Enum.TextXAlignment.Left
+		local b = new("TextBox", p, par)
+		U.roles[#U.roles + 1] = { o = b, p = "BackgroundColor3", r = "card" }
+		U.corner(10, b) U.pad(12, 12, 0, 0, b) U.stroke(C.line, 1, b)
+		return b
+	end
+	function U.bind(o, p, fn) U.binds[#U.binds + 1] = { o, p, fn } o[p] = fn() return o end
+	function U.isPress(i) return i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch end
+	function U.isMove(i) return i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch end
+	function U.vpScale(h)
+		local cam = workspace.CurrentCamera
+		local vp = cam and cam.ViewportSize or V2(800, 600)
+		return math.clamp(math.min(vp.X / 460, vp.Y / ((h or 400) + 40)), 0.5, 1)
+	end
+	function U.ink()
+		local c = U.A1:Lerp(U.A2, 0.5)
+		return (c.R * 0.299 + c.G * 0.587 + c.B * 0.114) > 0.6 and C.bg or WHITE
+	end
+	function U.nameOf(path) return (path:gsub("\\", "/"):match("([^/]+)$")) or path end
+	function U.logo(par, size, props)
+		local p = props or {}
+		p.Size, p.BackgroundColor3, p.BorderSizePixel = UDim2.fromOffset(size, size), C.bg, 0
+		local f = new("Frame", p, par)
+		U.corner(size, f)
+		new("ImageLabel", { Size = UDim2.new(1, -6, 1, -6), Position = UDim2.fromOffset(3, 3), BackgroundTransparency = 1, Image = K.logo, ScaleType = Enum.ScaleType.Fit, ZIndex = (p.ZIndex or 1) + 1 }, f)
+		return f
+	end
+
+	-- ===== themes + palette =====
+	function U.buildTH()
+		U.TH = {}
+		for _, t in ipairs(BASE) do U.TH[#U.TH + 1] = t end
+		for mi, m in ipairs(S.mythemes) do
+			local ok1, a = pcall(Color3.fromHex, m.a)
+			local ok2, b = pcall(Color3.fromHex, m.b)
+			if ok1 and ok2 then U.TH[#U.TH + 1] = { name = m.n, c1 = a, c2 = b, user = true, mi = mi } end
+		end
+		if not U.TH[S.theme] then S.theme = 1 end
+	end
+	U.buildTH()
+	function U.customCols()
+		local ok1, a = pcall(Color3.fromHex, S.c1)
+		local ok2, b = pcall(Color3.fromHex, S.c2)
+		return ok1 and a or rgb(139, 92, 246), ok2 and b or rgb(56, 189, 248)
+	end
+	function U.pal(t)
+		local th = U.TH[S.theme] or U.TH[1]
+		if th.rainbow then
+			local h = S.anim and (t * 0.07 * S.cspeed) % 1 or 0.75
+			return Color3.fromHSV(h, 0.6, 1), Color3.fromHSV((h + 0.18) % 1, 0.6, 1)
+		end
+		local c1, c2 = th.c1, th.c2
+		if th.custom then c1, c2 = U.customCols() end
+		if S.anim then
+			local m = (math.sin(t * 1.4 * S.cspeed) + 1) / 2
+			return c1:Lerp(c2, m), c2:Lerp(c1, m)
+		end
+		return c1, c2
+	end
+	local function seqAcc(three)
+		if not S.grad then return ColorSequence.new(U.A1) end
+		if three then return ColorSequence.new({ ColorSequenceKeypoint.new(0, U.A1), ColorSequenceKeypoint.new(0.5, U.A2), ColorSequenceKeypoint.new(1, U.A1) }) end
+		return ColorSequence.new(U.A1, U.A2)
+	end
+
+	-- ===== surfaces, accents, glow =====
+	function U.paint(e)
+		if not e.f.Parent then return end
+		local gl = S.glass
+		local base = T[e.role] or e.c
+		e.f.BackgroundColor3 = gl and base:Lerp(WHITE, 0.05) or base
+		e.f.BackgroundTransparency = gl and math.clamp(S.alpha + e.l, 0, 0.95) or 0
+		e.g.Enabled = S.grad
+		e.g.Color = ColorSequence.new(WHITE, gl and rgb(165, 165, 190) or rgb(190, 190, 200))
+		e.g.Transparency = gl and NumberSequence.new(0, 0.2) or NumberSequence.new(0)
+		e.st.Color = gl and WHITE or C.line
+		e.st.Transparency = gl and 0.82 or 0
+	end
+	function U.surf(f, lvl, col)
+		local e = { f = f, l = lvl or 0, c = col or C.card }
+		e.role = U.roleOf(e.c)
+		e.g = new("UIGradient", { Rotation = 90 }, f)
+		e.st = new("UIStroke", { Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, f)
+		U.surfs[#U.surfs + 1] = e
+		U.paint(e)
+		return e
+	end
+	function U.accentG(par, rot)
+		local g = new("UIGradient", { Color = seqAcc(false), Rotation = rot or 0 }, par)
+		U.accents[#U.accents + 1] = g
+		return g
+	end
+	function U.spin(e)
+		if e.tw then e.tw:Cancel() e.tw = nil end
+		e.g.Rotation = 0
+		if not S.anim then return end
+		e.tw = Sv.TweenService:Create(e.g, TweenInfo.new(1 / math.max(S.speed, 0.1), Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1), { Rotation = 360 })
+		e.tw:Play()
+	end
+	function U.glow(par, th)
+		local st = new("UIStroke", { Thickness = th or S.thick, Color = WHITE, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, par)
+		local g = new("UIGradient", {
+			Color = seqAcc(true),
+			Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.3, 1), NumberSequenceKeypoint.new(0.7, 1), NumberSequenceKeypoint.new(1, 0) }),
+		}, st)
+		local e = { g = g, st = st }
+		U.glows[#U.glows + 1] = e
+		U.spin(e)
+		return st
+	end
+
+	local acc = 0
+	U.track(Sv.RunService.Heartbeat:Connect(function(dt)
+		local t = os.clock()
+		U.A1, U.A2 = U.pal(t)
+		acc = acc + dt
+		if acc >= 1 / 30 then
+			acc = 0
+			local s3, s2 = seqAcc(true), seqAcc(false)
+			local tc = U.A1:Lerp(Color3.new(0, 0, 0), 0.7)
+			for k in pairs(TINTED) do T[k] = C[k]:Lerp(tc, S.tint * (k == "line" and 0.5 or 0.8)) end
+			for _, e in ipairs(U.surfs) do
+				if e.f.Parent and e.role then e.f.BackgroundColor3 = S.glass and T[e.role]:Lerp(WHITE, 0.05) or T[e.role] end
+			end
+			for i = #U.roles, 1, -1 do
+				local r = U.roles[i]
+				if r.o.Parent then if not r.hov then r.o[r.p] = T[r.r] end else table.remove(U.roles, i) end
+			end
+			for i = #U.glows, 1, -1 do
+				local e = U.glows[i]
+				if e.g.Parent then e.g.Color = s3 else if e.tw then e.tw:Cancel() end table.remove(U.glows, i) end
+			end
+			for i = #U.accents, 1, -1 do
+				local g = U.accents[i]
+				if g.Parent then g.Color = s2 else table.remove(U.accents, i) end
+			end
+			for i = #U.binds, 1, -1 do
+				local b = U.binds[i]
+				if b[1].Parent then b[1][b[2]] = b[3]() else table.remove(U.binds, i) end
+			end
+		end
+		if U.open and S.anim then for _, h in ipairs(U.hooks) do h(dt, t) end end
+	end))
+
+	-- ===== icons (lucide) =====
+	function U.loadIcons()
+		local ok, t = pcall(function() return loadstring(game:HttpGet(K.icons, true))() end)
+		local n = 0
+		if ok and type(t) == "table" then
+			if type(t.Icons) == "table" then t = t.Icons end
+			U.IC = t
+			for _ in pairs(t) do n = n + 1 end
+		end
+		return n
+	end
+	function U.icon(name, glyph, sz, col, par)
+		local h = new("Frame", { Size = UDim2.fromOffset(sz, sz), BackgroundTransparency = 1 }, par)
+		local img = new("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ImageColor3 = col, Visible = false }, h)
+		local txt = U.lbl(glyph, math.max(sz - 4, 8), col, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold, Visible = false }, h)
+		local v = U.IC[name] or U.IC["lucide-" .. name]
+		if type(v) == "string" then img.Image = v img.Visible = true
+		elseif type(v) == "table" then
+			img.Image = v.Image or v.image or v[1] or ""
+			local rs, ro = v.ImageRectSize or v.size, v.ImageRectPosition or v.ImageRectOffset or v.position
+			if typeof(rs) == "Vector2" then img.ImageRectSize = rs end
+			if typeof(ro) == "Vector2" then img.ImageRectOffset = ro end
+			img.Visible = true
+		else txt.Visible = true end
+		return { f = h, img = img, txt = txt }
+	end
+	function U.tint(i, col) U.tw(i.img, { ImageColor3 = col }, 0.15) U.tw(i.txt, { TextColor3 = col }, 0.15) end
+
+	-- ===== http, thumbnails, script providers =====
+	local function httpGet(url)
+		local ok, r = pcall(game.HttpGet, game, url, true)
+		if ok and r and r ~= "" then return r end
+		if request then
+			local rr = request({ Url = url, Method = "GET" })
+			if rr and rr.Body and rr.Body ~= "" then return rr.Body end
+		end
+		error("http failed: " .. url)
+	end
+	local function enc(s) return Sv.HttpService:UrlEncode(s) end
+	local function absUrl(u, base)
+		if type(u) ~= "string" or u == "" then return nil end
+		if u:sub(1, 1) == "/" then return base .. u end
+		return u
+	end
+	local gca = getcustomasset or getsynasset
+	local function hash(s)
+		local h = 5381
+		for i = 1, #s do h = (h * 33 + s:byte(i)) % 4294967296 end
+		return string.format("%08x", h)
+	end
+	function U.loadThumb(url, img)
+		task.spawn(function()
+			if not gca or not writefile then return end
+			while U.thumbBusy >= 4 do task.wait(0.1) end
+			U.thumbBusy = U.thumbBusy + 1
+			local a = U.thumbCache[url]
+			if not a then
+				local path = K.cache .. "/" .. hash(url) .. ".png"
+				if not (isfile and isfile(path)) then
+					local ok, body = pcall(httpGet, url)
+					if ok and type(body) == "string" and #body > 100 then pcall(writefile, path, body) end
+				end
+				local ok, r = pcall(gca, path)
+				if ok and r then a = r U.thumbCache[url] = r end
+			end
+			U.thumbBusy = U.thumbBusy - 1
+			if a and img.Parent then img.Image = a U.tw(img, { ImageTransparency = 0 }, 0.35) end
+		end)
+	end
+	local P = {}
+	U.P, U.PORDER = P, { "scriptblox", "rscripts", "robloxscripts", "haxhell", "files" }
+	P.scriptblox = { name = "ScriptBlox", fetch = function(q, p)
+		local url = q ~= "" and ("https://scriptblox.com/api/script/search?q=" .. enc(q) .. "&page=" .. p .. "&max=20") or ("https://scriptblox.com/api/script/fetch?page=" .. p)
+		local j, out = Sv.HttpService:JSONDecode(httpGet(url)), {}
+		for _, s in ipairs((j.result and j.result.scripts) or {}) do
+			out[#out + 1] = { title = s.title or "?", game = (s.game and s.game.name) or "Universal", verified = s.verified == true, key = s.key == true,
+				views = s.views or 0, universal = s.isUniversal == true, src = "ScriptBlox", date = s.createdAt or "", code = s.script,
+				thumb = absUrl(s.image or (s.game and s.game.imageUrl), "https://scriptblox.com") }
+		end
+		return out
+	end }
+	P.rscripts = { name = "RScripts", fetch = function(q, p)
+		-- NEED: field names hedged. verify once: print(game:HttpGet(url))
+		local url = "https://rscripts.net/api/v2/scripts?page=" .. p .. "&orderBy=date&sort=desc" .. (q ~= "" and ("&q=" .. enc(q)) or "")
+		local j, out = Sv.HttpService:JSONDecode(httpGet(url)), {}
+		for _, s in ipairs(j.scripts or {}) do
+			local g = s.game
+			out[#out + 1] = { title = s.title or "?", game = type(g) == "table" and (g.title or g.name) or tostring(g or "Universal"),
+				verified = s.verified == true or (s.user and s.user.verified == true) or false, key = s.keySystem == true, views = s.views or 0,
+				universal = g == nil, src = "RScripts", date = s.lastUpdated or s.createdAt or "", raw = s.rawScript,
+				thumb = absUrl(s.image or s.thumbnail or (type(g) == "table" and (g.imgurl or g.image)), "https://rscripts.net") }
+		end
+		return out
+	end }
+	local function generic(name, key)
+		return { name = name, fetch = function(q, p)
+			local tpl = K.endpoints[key]
+			if not tpl then error("no endpoint set (K.endpoints." .. key .. ")") end
+			local url = (tpl:gsub("{q}", function() return enc(q) end):gsub("{p}", function() return tostring(p) end))
+			local j = Sv.HttpService:JSONDecode(httpGet(url))
+			local arr = (type(j) == "table" and j[1] and j) or j.scripts or j.data or (j.result and j.result.scripts) or {}
+			local out = {}
+			for _, s in ipairs(arr) do
+				local g = s.game
+				out[#out + 1] = { title = s.title or s.name or "?", game = type(g) == "table" and (g.name or g.title) or tostring(g or "Universal"),
+					verified = s.verified == true, key = s.key == true or s.keySystem == true, views = s.views or 0, universal = false, src = name,
+					date = s.createdAt or "", code = s.script, raw = s.rawScript or s.raw or s.url, thumb = absUrl(s.image or s.thumbnail or s.img, "") }
+			end
+			return out
+		end }
+	end
+	P.robloxscripts, P.haxhell = generic("RobloxScripts", "robloxscripts"), generic("Haxhell", "haxhell")
+	P.files = { name = "Local", fetch = function(q)
+		local out = {}
+		for _, path in ipairs(listfiles(K.folder)) do
+			local n = U.nameOf(path)
+			if q == "" or n:lower():find(q:lower(), 1, true) then
+				out[#out + 1] = { title = n, game = "Local file", verified = false, key = false, views = 0, universal = false, src = "Local", date = "", file = path }
+			end
+		end
+		return out
+	end }
+	function U.getCode(it)
+		if it.code and it.code ~= "" then return it.code end
+		if it.file then return readfile(it.file) end
+		if it.raw then return httpGet(it.raw) end
+		error("no code")
+	end
+
+	-- ===== roblox game info (MarketplaceService) =====
+	function U.fetchGame()
+		local ok, info = pcall(function() return Sv.MarketplaceService:GetProductInfo(game.PlaceId) end)
+		if ok and type(info) == "table" then
+			U.game.name = info.Name or "Unknown"
+			U.game.creator = info.Creator and info.Creator.Name or ""
+			local id = info.IconImageAssetId
+			U.game.icon = (id and id ~= 0) and ("rbxassetid://" .. id) or ("rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=150&h=150")
+		else
+			U.game.name = "Unknown place"
+			U.game.icon = "rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=150&h=150"
+		end
+		return ok
+	end
+
+	-- ===== executor check =====
+	local execName = "unknown"
+	pcall(function() execName = identifyexecutor() end)
+	local UNC = { "loadstring", "getgenv", "hookfunction", "hookmetamethod", "newcclosure", "checkcaller", "getnamecallmethod", "getconnections",
+		"fireclickdetector", "fireproximityprompt", "firetouchinterest", "getinstances", "getnilinstances", "getscripts", "getsenv", "getgc",
+		"decompile", "readfile", "writefile", "isfile", "isfolder", "makefolder", "listfiles", "delfile", "setclipboard", "getcustomasset",
+		"request", "cloneref", "gethui", "Drawing", "WebSocket", "crypt", "queue_on_teleport", "setfpscap", "getrawmetatable", "setreadonly" }
+	local function uncCheck()
+		local have, miss = 0, {}
+		for _, n in ipairs(UNC) do
+			local ok, v = pcall(function() local f = loadstring("return " .. n) return f and f() end)
+			if ok and v ~= nil then have = have + 1 else miss[#miss + 1] = n end
+		end
+		return have, #UNC, miss
+	end
+
+	-- ===== key session (memory only) =====
+	local SESSION
+	local function writeSession(p) SESSION = { provider = p.id, exp = (p.hours or 0) > 0 and os.time() + p.hours * 3600 or 0 } end
+	function U.expText()
+		if not SESSION or SESSION.exp == 0 then return "Lifetime" end
+		local d = SESSION.exp - os.time()
+		if d <= 0 then return "expired" end
+		return string.format("%dh %02dm", math.floor(d / 3600), math.floor((d % 3600) / 60))
+	end
+	local function redeem(p, key)
+		if p.key then local ok = key == p.key return ok, ok and "key accepted" or "invalid key" end
+		if not p.verifyUrl then return false, "provider not configured" end
+		local hwid = ""
+		pcall(function() hwid = Sv.RbxAnalyticsService:GetClientId() end)
+		local url = (p.verifyUrl:gsub("{key}", function() return enc(key) end):gsub("{hwid}", function() return enc(hwid) end))
+		local ok, body = pcall(httpGet, url)
+		if not ok then return false, "provider unreachable" end
+		local okj, j = pcall(Sv.HttpService.JSONDecode, Sv.HttpService, body)
+		local good
+		if okj and type(j) == "table" then good = j[p.okField or "valid"] == true or j.success == true
+		else good = tostring(body):lower():match("^%s*true%s*$") ~= nil end
+		return good, good and "key redeemed" or "invalid or expired key"
+	end
+
+	-- ===== sound line visualizer (decor) =====
+	function U.makeViz(par, n, bw)
+		local bars = {}
+		for i = 1, n do
+			local b = new("Frame", { AnchorPoint = V2(0.5, 0.5), Position = UDim2.new((i - 0.5) / n, 0, 0.5, 0), Size = UDim2.new(0, bw, 0.1, 0), BackgroundColor3 = U.A1, BorderSizePixel = 0 }, par)
+			U.corner(2, b)
+			bars[i] = { f = b, h = 0.1 }
+		end
+		local beat, nextBeat = 0, 0
+		return function(dt, t, boost)
+			if not S.anim then return end
+			if t >= nextBeat then beat, nextBeat = 1, t + 0.38 + math.random() * 0.2 end
+			beat = math.max(0, beat - dt * 3)
+			for i, b in ipairs(bars) do
+				local x = i / n
+				local tgt = 0.12 + 0.5 * math.abs(math.sin(t * 2.7 + i * 0.6)) * math.abs(math.sin(t * 1.3 + i * 0.23)) + 0.3 * beat * (1 - math.abs(x - 0.5) * 1.4) + (boost or 0) * math.abs(math.sin(i * 1.7 + t * 9))
+				b.h = b.h + (math.min(tgt, 1) - b.h) * math.min(dt * 14, 1)
+				b.f.Size = UDim2.new(0, bw, b.h, 0)
+				b.f.BackgroundColor3 = U.A1:Lerp(U.A2, x)
+			end
+		end
+	end
+
+	-- ===== root gui =====
+	local Root = new("ScreenGui", { Name = tostring(math.random(1e6, 9e6)), ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling, IgnoreGuiInset = true, DisplayOrder = 999 })
+	do
+		local ok = pcall(function() Root.Parent = (gethui and gethui()) or Sv.CoreGui end)
+		if not ok or not Root.Parent then Root.Parent = lp:WaitForChild("PlayerGui") end
+	end
+	local deltaSG
+	if K.hideDelta then
+		pcall(function()
+			local h = Sv.CoreGui:FindFirstChild(K.deltaHash)
+			deltaSG = h and h:FindFirstChildOfClass("ScreenGui")
+			if deltaSG then deltaSG.Enabled = false end
+		end)
+	end
+	local blur = new("BlurEffect", { Size = 0 }, Sv.Lighting)
+	function U.setBlur(on) U.tw(blur, { Size = (on and S.blur and S.glass) and 16 or 0 }, 0.35) end
+	local Backdrop = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0 }, Root)
+	function U.restyle()
+		for i = #U.surfs, 1, -1 do
+			local e = U.surfs[i]
+			if e.f.Parent then U.paint(e) else table.remove(U.surfs, i) end
+		end
+		for _, e in ipairs(U.glows) do e.st.Thickness = S.thick U.spin(e) end
+		U.setBlur(U.open)
+	end
+	function U.unload()
+		U.open = false
+		for _, c in ipairs(U.conns) do pcall(function() c:Disconnect() end) end
+		for _, e in ipairs(U.glows) do if e.tw then pcall(function() e.tw:Cancel() end) end end
+		pcall(function() blur:Destroy() end)
+		pcall(function() Root:Destroy() end)
+		if deltaSG then pcall(function() deltaSG.Enabled = true end) end
+		G.__ArachnidUnload = nil
+	end
+	G.__ArachnidUnload = U.unload
+
+	local Toasts = new("Frame", { Size = UDim2.fromOffset(250, 0), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -12, 0, 56), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ZIndex = 200 }, Root)
+	new("UIListLayout", { Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, SortOrder = Enum.SortOrder.LayoutOrder }, Toasts)
+	function U.notify(msg, col)
+		if not S.notify then return end
+		local t = new("Frame", { Size = UDim2.fromOffset(250, 34), BorderSizePixel = 0 }, Toasts)
+		U.corner(9, t) U.surf(t, 0.05, C.panel)
+		new("Frame", { Size = UDim2.new(0, 3, 1, 0), BackgroundColor3 = col or C.text, BorderSizePixel = 0 }, t)
+		U.lbl(msg, 11, C.text, { Size = UDim2.new(1, -20, 1, 0), Position = UDim2.fromOffset(14, 0), TextTruncate = Enum.TextTruncate.AtEnd }, t)
+		local sc = new("UIScale", { Scale = 0.7 }, t)
+		U.tw(sc, { Scale = 1 }, 0.25, nil, Enum.EasingStyle.Back)
+		task.delay(2.6, function() U.tw(sc, { Scale = 0 }, 0.2, function() t:Destroy() end) end)
+	end
+	function U.fatal(msg)
+		warn("[Arachnid] " .. tostring(msg))
+		pcall(function()
+			Backdrop.BackgroundTransparency = 0.4
+			local f = new("Frame", { Size = UDim2.fromOffset(440, 220), AnchorPoint = V2(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = C.panel, BorderSizePixel = 0 }, Backdrop)
+			U.corner(14, f) U.stroke(C.red, 2, f)
+			new("UIScale", { Scale = U.vpScale(220) }, f)
+			U.lbl("Arachnid failed", 15, C.red, { Size = UDim2.new(1, -28, 0, 22), Position = UDim2.fromOffset(14, 12), Font = Enum.Font.GothamBold }, f)
+			U.lbl(tostring(msg):sub(1, 700), 10, C.text, { Size = UDim2.new(1, -28, 0, 120), Position = UDim2.fromOffset(14, 40), TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code }, f)
+			U.btn("Copy error", 11, C.card, C.text, { Size = UDim2.fromOffset(110, 32), Position = UDim2.new(0, 14, 1, -44) }, f).MouseButton1Click:Connect(function() pcall(setclipboard, tostring(msg)) end)
+			U.btn("Unload", 11, C.red, WHITE, { Size = UDim2.fromOffset(90, 32), Position = UDim2.new(0, 132, 1, -44) }, f).MouseButton1Click:Connect(U.unload)
+		end)
+	end
+	function U.dragArea(f, fn)
+		local on = false
+		local function upd(i)
+			local p, s = f.AbsolutePosition, f.AbsoluteSize
+			fn(math.clamp((i.Position.X - p.X) / s.X, 0, 1), math.clamp((i.Position.Y - p.Y) / s.Y, 0, 1))
+		end
+		f.InputBegan:Connect(function(i) if U.isPress(i) then on = true upd(i) end end)
+		U.track(Sv.UserInputService.InputChanged:Connect(function(i) if on and U.isMove(i) then upd(i) end end))
+		U.track(Sv.UserInputService.InputEnded:Connect(function(i) if on and U.isPress(i) then on = false end end))
+	end
+	function U.pushRecent(n)
+		for i = #S.recent, 1, -1 do if S.recent[i] == n then table.remove(S.recent, i) end end
+		table.insert(S.recent, 1, n)
+		while #S.recent > 15 do table.remove(S.recent) end
+	end
+	function U.saveScript(title, code)
+		local n = tostring(title):gsub("%.luau?$", ""):gsub("[^%w_%-%s]", ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", "_")
+		if n == "" then n = "script" end
+		n = n .. ".lua"
+		return (pcall(writefile, K.folder .. "/" .. n, code)), n
+	end
+	function U.openRobloxConsole()
+		local ok = pcall(function() Sv.StarterGui:SetCore("DevConsoleVisible", true) end)
+		U.notify(ok and "Roblox console opened" or "could not open Roblox console", ok and C.green or C.red)
+	end
+	U.H = { U.new, U.tw, U.lbl, U.btn, U.corner, U.pad, U.stroke, U.accentG, U.bind, U.surf, U.ink, U.field, U.icon, U.track }
+
+	-- =================== PAGES ===================
+	PG.Home = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local sc = X.scroller(X.page("Home"))
+		local o = 0
+		local function nx() o = o + 1 return o end
+
+		-- profile + game cards
+		local row = new("Frame", { Size = UDim2.new(1, 0, 0, 100), BackgroundTransparency = 1, LayoutOrder = nx() }, sc)
+		local pc = new("Frame", { Size = UDim2.new(0.5, -4, 1, 0), BorderSizePixel = 0 }, row)
+		corner(14, pc) surf(pc, 0.05, C.card)
+		local av = new("ImageLabel", { Size = UDim2.fromOffset(64, 64), Position = UDim2.fromOffset(12, 12), BackgroundColor3 = C.hover, Image = U.avatar, BorderSizePixel = 0 }, pc)
+		corner(32, av) stroke(C.line, 1, av)
+		local nameL = lbl("", 14, C.text, { Size = UDim2.new(1, -92, 0, 18), Position = UDim2.fromOffset(86, 12), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, pc)
+		local subL = lbl("", 10, C.sub, { Size = UDim2.new(1, -92, 0, 14), Position = UDim2.fromOffset(86, 32), TextTruncate = Enum.TextTruncate.AtEnd }, pc)
+		lbl("Account age " .. lp.AccountAge .. " days", 9, C.mute, { Size = UDim2.new(1, -92, 0, 12), Position = UDim2.fromOffset(86, 48) }, pc)
+		local cpB = btn("Copy profile URL", 9, C.hover, C.text, { Size = UDim2.new(1, -24, 0, 20), Position = UDim2.new(0, 12, 1, -26) }, pc)
+		cpB.MouseButton1Click:Connect(function() pcall(setclipboard, U.profileUrl) U.notify("profile URL copied", C.blue) end)
+		function X.setNames()
+			nameL.Text = S.stream and "streamer" or lp.DisplayName
+			subL.Text = S.stream and "hidden" or ("@" .. lp.Name .. "  |  id " .. lp.UserId)
+			av.ImageTransparency = S.stream and 1 or 0
+		end
+		X.setNames()
+
+		local gc = new("Frame", { Size = UDim2.new(0.5, -4, 1, 0), Position = UDim2.new(0.5, 4, 0, 0), BorderSizePixel = 0 }, row)
+		corner(14, gc) surf(gc, 0.05, C.card)
+		local gi = new("ImageLabel", { Size = UDim2.fromOffset(64, 64), Position = UDim2.fromOffset(12, 12), BackgroundColor3 = C.hover, BorderSizePixel = 0, ScaleType = Enum.ScaleType.Crop }, gc)
+		corner(14, gi) stroke(C.line, 1, gi)
+		local gN = lbl(U.game.name, 13, C.text, { Size = UDim2.new(1, -92, 0, 32), Position = UDim2.fromOffset(86, 10), Font = Enum.Font.GothamBold, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top }, gc)
+		local gC = lbl("", 10, C.sub, { Size = UDim2.new(1, -92, 0, 14), Position = UDim2.fromOffset(86, 44), TextTruncate = Enum.TextTruncate.AtEnd }, gc)
+		local gP = lbl("", 9, C.mute, { Size = UDim2.new(1, -24, 0, 14), Position = UDim2.new(0, 12, 1, -22), TextTruncate = Enum.TextTruncate.AtEnd }, gc)
+		local function paintGame()
+			gN.Text = U.game.name
+			gC.Text = U.game.creator ~= "" and ("by " .. U.game.creator) or ""
+			gP.Text = "place " .. game.PlaceId .. "  |  " .. #Sv.Players:GetPlayers() .. "/" .. Sv.Players.MaxPlayers .. " players"
+			if U.game.icon then gi.Image = U.game.icon end
+		end
+		paintGame()
+		task.spawn(function() if not U.game.icon then U.fetchGame() end paintGame() end)
+
+		-- stats
+		local grid = new("Frame", { Size = UDim2.new(1, 0, 0, 50), BackgroundTransparency = 1, LayoutOrder = nx() }, sc)
+		new("UIGridLayout", { CellSize = UDim2.new(0.25, -6, 1, 0), CellPadding = UDim2.fromOffset(8, 0) }, grid)
+		local function stat(name, val)
+			local f = new("Frame", { BorderSizePixel = 0 }, grid)
+			corner(10, f) surf(f, 0.05, C.card)
+			lbl(name, 9, C.mute, { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.fromOffset(0, 8), TextXAlignment = Enum.TextXAlignment.Center }, f)
+			return lbl(val, 12, C.text, { Size = UDim2.new(1, -8, 0, 18), Position = UDim2.fromOffset(4, 24), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, f)
+		end
+		local stF, stN, stPl, stT = stat("FPS", "0"), stat("PING", "0 ms"), stat("PLAYERS", "0"), stat("SESSION", "0m")
+		local frames, t0 = 0, os.clock()
+		track(Sv.RunService.RenderStepped:Connect(function() frames = frames + 1 end))
+		task.spawn(function()
+			while Root.Parent do
+				task.wait(1)
+				stF.Text = frames .. " FPS" frames = 0
+				pcall(function() stN.Text = math.floor(Sv.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) .. " ms" end)
+				stPl.Text = #Sv.Players:GetPlayers() .. "/" .. Sv.Players.MaxPlayers
+				stT.Text = math.floor((os.clock() - t0) / 60) .. "m"
+			end
+		end)
+
+		-- sound line
+		local vc = new("Frame", { Size = UDim2.new(1, 0, 0, 46), BorderSizePixel = 0, LayoutOrder = nx() }, sc)
+		corner(12, vc) surf(vc, 0.05, C.card)
+		local vf = new("Frame", { Size = UDim2.new(1, -24, 1, -14), Position = UDim2.fromOffset(12, 7), BackgroundTransparency = 1 }, vc)
+		local vz = U.makeViz(vf, 70, 3)
+		U.hooks[#U.hooks + 1] = function(dt, t) if S.viz then vz(dt, t, 0.05) end end
+
+		-- quick scripts
+		lbl("Quick scripts", 11, C.sub, { Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.GothamBold, LayoutOrder = nx() }, sc)
+		local qg = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = nx() }, sc)
+		new("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 52), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }, qg)
+		for i, q in ipairs(K.quick) do
+			local b = btn("", 10, C.card, C.sub, { LayoutOrder = i }, qg)
+			corner(12, b) stroke(C.line, 1, b)
+			local ib = new("Frame", { Size = UDim2.fromOffset(34, 34), Position = UDim2.fromOffset(9, 9), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, b)
+			corner(10, ib) accentG(ib, 45)
+			local ic = icon(q[3], q[4], 16, C.bg, ib)
+			ic.f.Position = UDim2.fromOffset(9, 9)
+			bind(ic.img, "ImageColor3", ink) bind(ic.txt, "TextColor3", ink)
+			lbl(q[1], 11, C.text, { Size = UDim2.new(1, -56, 0, 16), Position = UDim2.fromOffset(52, 9), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, b)
+			lbl(q[5], 9, C.mute, { Size = UDim2.new(1, -56, 0, 14), Position = UDim2.fromOffset(52, 27), TextTruncate = Enum.TextTruncate.AtEnd }, b)
+			b.MouseButton1Click:Connect(function() X.runCode(q[2], q[1]) end)
+		end
+
+		-- executor check
+		local unc = new("Frame", { Size = UDim2.new(1, 0, 0, 64), BorderSizePixel = 0, LayoutOrder = nx() }, sc)
+		corner(10, unc) surf(unc, 0.05, C.card)
+		lbl("Executor check  |  " .. tostring(execName), 11, C.text, { Size = UDim2.new(1, -100, 0, 16), Position = UDim2.fromOffset(12, 8), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, unc)
+		local uL = lbl("", 10, C.sub, { Size = UDim2.new(1, -24, 0, 14), Position = UDim2.fromOffset(12, 26), TextTruncate = Enum.TextTruncate.AtEnd }, unc)
+		local trk = new("Frame", { Size = UDim2.new(1, -24, 0, 5), Position = UDim2.fromOffset(12, 48), BackgroundColor3 = C.hover, BorderSizePixel = 0 }, unc)
+		corner(3, trk)
+		local fill = new("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, trk)
+		corner(3, fill) accentG(fill, 0)
+		local function run()
+			local have, total, miss = uncCheck()
+			uL.Text = have .. "/" .. total .. " functions" .. (#miss > 0 and ("  |  missing: " .. table.concat(miss, ", ", 1, math.min(#miss, 5))) or "")
+			tw(fill, { Size = UDim2.new(have / total, 0, 1, 0) }, 0.5)
+		end
+		btn("Run", 10, C.hover, C.text, { Size = UDim2.fromOffset(58, 24), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -10, 0, 8) }, unc).MouseButton1Click:Connect(run)
+		run()
+
+		lbl("Recent", 11, C.sub, { Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.GothamBold, LayoutOrder = nx() }, sc)
+		local rrow = X.hrow(sc, 32, nx())
+		X.onShow.Home = function()
+			paintGame()
+			for _, c in ipairs(rrow:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+			if #S.recent == 0 then lbl("nothing run yet", 10, C.mute, { Size = UDim2.fromOffset(200, 30) }, rrow) return end
+			for i, n in ipairs(S.recent) do
+				if i > 8 then break end
+				local b = btn(n, 10, C.card, C.sub, { Size = UDim2.new(0, 0, 0, 30), AutomaticSize = Enum.AutomaticSize.X }, rrow)
+				pad(12, 12, 0, 0, b) stroke(C.line, 1, b)
+				b.MouseButton1Click:Connect(function() X.runFile(n) end)
+			end
+		end
+		lbl("Providers", 11, C.sub, { Size = UDim2.new(1, 0, 0, 16), Font = Enum.Font.GothamBold, LayoutOrder = nx() }, sc)
+		local prow = X.hrow(sc, 30, nx())
+		local dots = {}
+		for _, id in ipairs(U.PORDER) do
+			local f = new("Frame", { Size = UDim2.new(0, 0, 0, 28), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C.card, BorderSizePixel = 0 }, prow)
+			corner(8, f) pad(10, 10, 0, 0, f) stroke(C.line, 1, f)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 6) }, f)
+			local d = new("Frame", { Size = UDim2.fromOffset(7, 7), BackgroundColor3 = C.mute, BorderSizePixel = 0 }, f)
+			corner(4, d)
+			lbl(P[id].name, 10, C.sub, { Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X }, f)
+			dots[id] = d
+		end
+		function X.paintProviders()
+			for id, d in pairs(dots) do
+				local v = U.pstat[id]
+				tw(d, { BackgroundColor3 = v == true and C.green or (v == false and C.red or C.mute) }, 0.3)
+			end
+		end
+		X.paintProviders()
+		X.onShow.Home()
+	end
+
+	PG.Editor = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local pg = X.page("Editor")
+		local tabs, act = { { name = "script.lua", code = 'print("Arachnid")' } }, 1
+		local explW, explOpen, consOpen, guard = 150, true, true, false
+		local cw, lh = 7, 14
+		pcall(function() local s = Sv.TextService:GetTextSize("W", 12, Enum.Font.Code, V2(1000, 1000)) cw, lh = s.X, s.Y end)
+
+		local ex = new("Frame", { Size = UDim2.new(0, explW, 1, 0), BorderSizePixel = 0 }, pg)
+		corner(10, ex) surf(ex, 0.1, C.panel)
+		lbl("Explorer", 11, C.text, { Size = UDim2.new(1, -50, 0, 28), Position = UDim2.fromOffset(10, 0), Font = Enum.Font.GothamBold }, ex)
+		local exNew = btn("+", 14, C.hover, C.text, { Size = UDim2.fromOffset(24, 22), Position = UDim2.new(1, -32, 0, 3) }, ex)
+		local exSearch = field("search files", ex, { Size = UDim2.new(1, -16, 0, 26), Position = UDim2.fromOffset(8, 30) })
+		local fi = icon("folder", "F", 13, C.sub, ex)
+		fi.f.Position = UDim2.fromOffset(10, 64)
+		lbl(K.folder, 10, C.sub, { Size = UDim2.new(1, -34, 0, 20), Position = UDim2.fromOffset(28, 61), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, ex)
+		local exL = new("ScrollingFrame", { Size = UDim2.new(1, -8, 1, -88), Position = UDim2.fromOffset(4, 84), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 2, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, ex)
+		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }, exL)
+
+		local mn = new("Frame", { BackgroundTransparency = 1 }, pg)
+		local function layoutEd()
+			local show = explOpen and pg.AbsoluteSize.X >= 480
+			ex.Visible = show
+			local off = show and (explW + 8) or 0
+			mn.Position = UDim2.fromOffset(off, 0)
+			mn.Size = UDim2.new(1, -off, 1, 0)
+		end
+		track(pg:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutEd))
+
+		local function ibtn(par, name, gl, w, h)
+			local b = btn("", 10, C.hover, C.sub, { Size = UDim2.fromOffset(w, h or 20) }, par)
+			local i = icon(name, gl, 12, C.sub, b)
+			i.f.AnchorPoint = V2(0.5, 0.5)
+			i.f.Position = UDim2.fromScale(0.5, 0.5)
+			return b, i
+		end
+		local togB = ibtn(mn, "panel-left", "<", 26, 26)
+		togB.Position = UDim2.fromOffset(0, 2)
+		local addB = ibtn(mn, "plus", "+", 26, 26)
+		addB.AnchorPoint, addB.Position = V2(1, 0), UDim2.new(1, 0, 0, 2)
+		local ts = new("ScrollingFrame", { Size = UDim2.new(1, -62, 0, 30), Position = UDim2.fromOffset(30, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X }, mn)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), VerticalAlignment = Enum.VerticalAlignment.Center }, ts)
+
+		local bar = new("ScrollingFrame", { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 34), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X }, mn)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), VerticalAlignment = Enum.VerticalAlignment.Center }, bar)
+		local function tbtn(label, ic, gl, w, primary)
+			local b = btn("", 10, primary and WHITE or C.card, C.sub, { Size = UDim2.fromOffset(w, 28) }, bar)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, Padding = UDim.new(0, 5) }, b)
+			local i = icon(ic, gl, 13, C.sub, b)
+			local l = lbl(label, 10, C.sub, { Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, Font = Enum.Font.GothamBold }, b)
+			if primary then
+				accentG(b, 0)
+				bind(l, "TextColor3", ink) bind(i.img, "ImageColor3", ink) bind(i.txt, "TextColor3", ink)
+			end
+			return b
+		end
+		local bRun, bClear, bSave, bCopy, bDel = tbtn("Execute", "play", ">", 92, true), tbtn("Clear", "eraser", "c", 72), tbtn("Save", "save", "s", 70), tbtn("Copy", "copy", "k", 70), tbtn("Delete", "trash-2", "x", 78)
+
+		local wrap = new("Frame", { Position = UDim2.fromOffset(0, 68), BorderSizePixel = 0 }, mn)
+		corner(10, wrap) surf(wrap, 0.15, C.panel)
+		local gut = lbl("", 10, C.mute, { Size = UDim2.new(0, 30, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, TextYAlignment = Enum.TextYAlignment.Top, Font = Enum.Font.Code }, wrap)
+		pad(0, 4, 8, 8, gut)
+		local code = new("TextBox", { Size = UDim2.new(1, -40, 1, 0), Position = UDim2.fromOffset(36, 0), BackgroundTransparency = 1, TextColor3 = C.text, TextSize = 12, Font = Enum.Font.Code,
+			Text = tabs[1].code, TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top, MultiLine = true, ClearTextOnFocus = false,
+			PlaceholderText = "-- write luau here", PlaceholderColor3 = C.mute, TextWrapped = false }, wrap)
+		pad(0, 6, 8, 8, code)
+
+		local sbar = new("Frame", { Size = UDim2.new(1, 0, 0, 22), Position = UDim2.new(0, 0, 1, -22), BackgroundTransparency = 1 }, mn)
+		local fileL = lbl("", 10, C.sub, { Size = UDim2.new(0.4, 0, 1, 0), Position = UDim2.fromOffset(6, 0), TextTruncate = Enum.TextTruncate.AtEnd }, sbar)
+		local posL = lbl("", 10, C.mute, { Size = UDim2.new(0.6, -6, 1, 0), Position = UDim2.new(0.4, 0, 0, 0), TextXAlignment = Enum.TextXAlignment.Right }, sbar)
+
+		local cons = new("Frame", { AnchorPoint = V2(0, 1), BorderSizePixel = 0 }, mn)
+		corner(10, cons) surf(cons, 0.1, C.panel)
+		local chd = new("Frame", { Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1 }, cons)
+		local ci = icon("terminal", ">_", 13, C.sub, chd)
+		ci.f.Position = UDim2.fromOffset(8, 5)
+		lbl("Console", 10, C.text, { Size = UDim2.fromOffset(60, 24), Position = UDim2.fromOffset(26, 0), Font = Enum.Font.GothamBold }, chd)
+		local cbt = new("Frame", { Size = UDim2.fromOffset(86, 24), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -6, 0, 0), BackgroundTransparency = 1 }, chd)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center }, cbt)
+		local cClear, cCopy, cTog = ibtn(cbt, "eraser", "c", 26), ibtn(cbt, "copy", "k", 26), ibtn(cbt, "chevron-down", "v", 26)
+		local cl = new("ScrollingFrame", { Size = UDim2.new(1, -8, 1, -28), Position = UDim2.fromOffset(4, 26), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 2, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, cons)
+		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder }, cl)
+		local clog, crows, cn = {}, {}, 0
+		local MT = Enum.MessageType
+		track(Sv.LogService.MessageOut:Connect(function(msg, t)
+			cn = cn + 1
+			clog[#clog + 1] = msg
+			local col = t == MT.MessageError and C.red or t == MT.MessageWarning and C.yellow or C.text
+			crows[#crows + 1] = lbl(msg, 10, col, { Size = UDim2.new(1, 0, 0, 14), Font = Enum.Font.Code, LayoutOrder = cn, TextTruncate = Enum.TextTruncate.AtEnd }, cl)
+			if #crows > 80 then table.remove(crows, 1):Destroy() table.remove(clog, 1) end
+			cl.CanvasPosition = V2(0, 1e6)
+		end))
+		cClear.MouseButton1Click:Connect(function() for _, r in ipairs(crows) do r:Destroy() end crows, clog = {}, {} end)
+		cCopy.MouseButton1Click:Connect(function() pcall(setclipboard, table.concat(clog, "\n")) U.notify("console copied", C.blue) end)
+		local function setConsole(open)
+			consOpen = open
+			local chh = open and 84 or 24
+			cons.Size = UDim2.new(1, 0, 0, chh)
+			cons.Position = UDim2.new(0, 0, 1, -26)
+			wrap.Size = UDim2.new(1, 0, 1, -(68 + 26 + chh + 4))
+			cl.Visible = open
+		end
+		cTog.MouseButton1Click:Connect(function() setConsole(not consOpen) end)
+		setConsole(true)
+		layoutEd()
+
+		local refreshTabs, exRefresh
+		local function status()
+			local cur = code.CursorPosition
+			if cur < 1 then cur = #code.Text + 1 end
+			local before = code.Text:sub(1, cur - 1)
+			local ln = select(2, before:gsub("\n", "\n")) + 1
+			local col = #before - (before:match(".*()\n") or 0) + 1
+			posL.Text = "Ln " .. ln .. ", Col " .. col .. "   Spaces: 4   UTF-8   Lua"
+		end
+		local function sync()
+			local n = select(2, code.Text:gsub("\n", "\n")) + 1
+			local t = {}
+			for i = 1, math.min(n, 300) do t[i] = tostring(i) end
+			gut.Text = table.concat(t, "\n")
+			if tabs[act] then tabs[act].code = code.Text end
+			status()
+		end
+		local function loadTab(i)
+			if tabs[act] then tabs[act].code = code.Text end
+			act = i
+			guard = true
+			code.Text = tabs[i].code
+			guard = false
+			fileL.Text = tabs[i].name
+			sync() refreshTabs() exRefresh()
+		end
+		function refreshTabs()
+			for _, c in ipairs(ts:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+			for i, t in ipairs(tabs) do
+				local on = i == act
+				local b = btn(t.name, 10, on and C.hover or C.card, on and C.text or C.sub, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, Font = Enum.Font.GothamMedium }, ts)
+				pad(10, 26, 0, 0, b)
+				b.MouseButton1Click:Connect(function() if i ~= act then loadTab(i) end end)
+				local x = new("TextButton", { Text = "x", TextSize = 11, Font = Enum.Font.GothamBold, TextColor3 = C.mute, BackgroundTransparency = 1, Size = UDim2.fromOffset(18, 18), AnchorPoint = V2(1, 0.5), Position = UDim2.new(1, 20, 0.5, 0) }, b)
+				x.MouseButton1Click:Connect(function()
+					if #tabs == 1 then tabs[1] = { name = "script.lua", code = "" } loadTab(1) return end
+					table.remove(tabs, i)
+					loadTab(math.clamp(i <= act and act - 1 or act, 1, #tabs))
+				end)
+			end
+		end
+		function X.addTab(name, src, path)
+			if tabs[act] then tabs[act].code = code.Text end
+			if path then for i, t in ipairs(tabs) do if t.path == path then loadTab(i) return end end end
+			local nm = name or ("script" .. (#tabs + 1) .. ".lua")
+			if not nm:match("%.%w+$") then nm = nm .. ".lua" end
+			tabs[#tabs + 1] = { name = nm, code = src or "", path = path }
+			loadTab(#tabs)
+		end
+		function exRefresh()
+			for _, c in ipairs(exL:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+			local q = exSearch.Text:lower()
+			local files = {}
+			pcall(function()
+				for _, p in ipairs(listfiles(K.folder)) do
+					local n = U.nameOf(p)
+					if n:match("%.luau?$") or n:match("%.txt$") then files[#files + 1] = { n = n, p = p } end
+				end
+			end)
+			table.sort(files, function(a, b) return a.n:lower() < b.n:lower() end)
+			local shown = 0
+			for _, f in ipairs(files) do
+				if q == "" or f.n:lower():find(q, 1, true) then
+					shown = shown + 1
+					local on = tabs[act] and tabs[act].path == f.p
+					local b = btn("", 10, C.hover, C.sub, { Size = UDim2.new(1, 0, 0, 26), LayoutOrder = shown, BackgroundTransparency = on and 0 or 1 }, exL)
+					local fic = icon("file-text", "f", 13, on and C.text or C.sub, b)
+					fic.f.Position = UDim2.fromOffset(8, 6)
+					lbl(f.n, 10, on and C.text or C.sub, { Size = UDim2.new(1, -32, 1, 0), Position = UDim2.fromOffset(28, 0), TextTruncate = Enum.TextTruncate.AtEnd }, b)
+					b.MouseButton1Click:Connect(function()
+						local ok, src = pcall(readfile, f.p)
+						if ok then X.addTab(f.n, src, f.p) else U.notify("read failed", C.red) end
+					end)
+				end
+			end
+			if shown == 0 then lbl("no files", 10, C.mute, { Size = UDim2.new(1, 0, 0, 24), TextXAlignment = Enum.TextXAlignment.Center }, exL) end
+		end
+		X.onShow.Editor = exRefresh
+
+		-- autocomplete
+		local KW = { "and", "break", "do", "else", "elseif", "end", "false", "for", "function", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while", "continue" }
+		local BI = { "game", "workspace", "script", "print", "warn", "error", "pcall", "xpcall", "task", "Instance", "Vector2", "Vector3", "CFrame", "Color3", "UDim2", "UDim", "Enum", "TweenInfo",
+			"ColorSequence", "NumberSequence", "loadstring", "getgenv", "cloneref", "coroutine", "pairs", "ipairs", "next", "table", "string", "math", "os", "tostring", "tonumber", "type",
+			"typeof", "select", "require", "setclipboard", "readfile", "writefile", "isfile", "hookfunction", "request", "identifyexecutor", "wait", "spawn", "delay", "tick", "Random" }
+		local MD = { "Connect", "Disconnect", "Once", "Clone", "Destroy", "FindFirstChild", "FindFirstChildOfClass", "WaitForChild", "GetChildren", "GetDescendants", "GetService", "IsA",
+			"FireServer", "InvokeServer", "Play", "Cancel", "Wait", "SetAttribute", "GetAttribute" }
+		local SN = {
+			{ "Connect", ":Connect(function()\n\t|\nend)" }, { "for", "for i, v in ipairs(|) do\n\t\nend" }, { "if", "if | then\n\t\nend" },
+			{ "func", "local function name(|)\n\t\nend" }, { "while", "while true do\n\t|\n\ttask.wait()\nend" },
+			{ "pcall", "local ok, err = pcall(function()\n\t|\nend)" }, { "spawn", "task.spawn(function()\n\t|\nend)" },
+			{ "service", "local Players = game:GetService(\"Players\")|" },
+		}
+		local ITEMS = {}
+		for _, s in ipairs(SN) do ITEMS[#ITEMS + 1] = { name = s[1], body = s[2], kind = "Snippet", pr = 1 } end
+		for _, w in ipairs(KW) do ITEMS[#ITEMS + 1] = { name = w, kind = "Keyword", pr = 2 } end
+		for _, w in ipairs(BI) do ITEMS[#ITEMS + 1] = { name = w, kind = "Builtin", pr = 3 } end
+		for _, w in ipairs(MD) do ITEMS[#ITEMS + 1] = { name = w, kind = "Method", pr = 4 } end
+		local KC = { Snippet = C.green, Keyword = C.red, Builtin = rgb(139, 92, 246), Method = rgb(45, 212, 191) }
+		local pop = new("Frame", { Size = UDim2.fromOffset(230, 10), BorderSizePixel = 0, Visible = false, ZIndex = 60 }, wrap)
+		U.roles[#U.roles + 1] = { o = pop, p = "BackgroundColor3", r = "panel" }
+		corner(10, pop) stroke(C.line, 1, pop)
+		local popRows = {}
+		local function hidePop() pop.Visible = false end
+		local function accept(it)
+			local cur = code.CursorPosition
+			if cur < 1 then return end
+			local txt = code.Text
+			local before, after = txt:sub(1, cur - 1), txt:sub(cur)
+			local word = before:match("[%w_]+$") or ""
+			before = before:sub(1, #before - #word)
+			local ins = it.body or it.name
+			if ins:sub(1, 1) == ":" and before:sub(-1):match("[:%.]") then ins = ins:sub(2) end
+			local ci2 = ins:find("|", 1, true)
+			if ci2 then ins = ins:gsub("|", "", 1) end
+			local off = ci2 and (ci2 - 1) or #ins
+			guard = true
+			code.Text = before .. ins .. after
+			guard = false
+			sync() hidePop()
+			code:CaptureFocus()
+			code.CursorPosition = #before + off + 1
+		end
+		local function showSug()
+			if guard or not code:IsFocused() then hidePop() return end
+			local cur = code.CursorPosition
+			if cur < 1 then hidePop() return end
+			local before = code.Text:sub(1, cur - 1)
+			local word = before:match("[%w_]+$")
+			if not word then hidePop() return end
+			local lw, res = word:lower(), {}
+			for _, it in ipairs(ITEMS) do
+				if #it.name >= #word and it.name:sub(1, #word):lower() == lw and not (it.name == word and it.kind ~= "Snippet") then res[#res + 1] = it end
+			end
+			table.sort(res, function(a, b) if a.pr ~= b.pr then return a.pr < b.pr end return a.name:lower() < b.name:lower() end)
+			while #res > 8 do table.remove(res) end
+			if #res == 0 then hidePop() return end
+			for _, r in ipairs(popRows) do r:Destroy() end
+			popRows = {}
+			for i, it in ipairs(res) do
+				local r = new("TextButton", { Size = UDim2.new(1, -8, 0, 26), Position = UDim2.fromOffset(4, 4 + (i - 1) * 26), BackgroundColor3 = C.hover, BackgroundTransparency = 1, Text = "", AutoButtonColor = true, BorderSizePixel = 0, ZIndex = 61 }, pop)
+				corner(6, r)
+				local sw = new("Frame", { Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(6, 7), BackgroundColor3 = KC[it.kind], BorderSizePixel = 0, ZIndex = 62 }, r)
+				corner(3, sw)
+				lbl(it.name, 11, C.text, { Size = UDim2.new(1, -92, 1, 0), Position = UDim2.fromOffset(26, 0), Font = Enum.Font.Code, ZIndex = 62, TextTruncate = Enum.TextTruncate.AtEnd }, r)
+				lbl(it.kind, 9, C.mute, { Size = UDim2.fromOffset(56, 26), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -6, 0, 0), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 62 }, r)
+				r.MouseButton1Click:Connect(function() accept(it) end)
+				popRows[i] = r
+			end
+			local nl = select(2, before:gsub("\n", "\n"))
+			local col = #before - (before:match(".*()\n") or 0) - #word
+			local h = #res * 26 + 8
+			local x = math.clamp(38 + col * cw, 4, math.max(wrap.AbsoluteSize.X - 234, 4))
+			local y = 8 + (nl + 1) * lh + 2
+			if y + h > wrap.AbsoluteSize.Y then y = math.max(8 + nl * lh - h - 2, 4) end
+			pop.Position, pop.Size, pop.Visible = UDim2.fromOffset(x, y), UDim2.fromOffset(230, h), true
+		end
+		track(code:GetPropertyChangedSignal("Text"):Connect(function() sync() showSug() end))
+		track(code:GetPropertyChangedSignal("CursorPosition"):Connect(function() status() showSug() end))
+		code.FocusLost:Connect(function() task.delay(0.25, function() if not code:IsFocused() then hidePop() end end) end)
+
+		bRun.MouseButton1Click:Connect(function() X.runCode(code.Text, tabs[act].name) end)
+		bClear.MouseButton1Click:Connect(function() code.Text = "" end)
+		bCopy.MouseButton1Click:Connect(function() pcall(setclipboard, code.Text) U.notify("copied", C.blue) end)
+		bSave.MouseButton1Click:Connect(function()
+			local ok, n = U.saveScript(tabs[act].name, code.Text)
+			if ok then
+				tabs[act].name, tabs[act].path = n, K.folder .. "/" .. n
+				fileL.Text = n refreshTabs() exRefresh()
+				X.libRefresh()
+			end
+			U.notify(ok and ("saved " .. n) or "save failed", ok and C.green or C.red)
+		end)
+		local armed = false
+		bDel.MouseButton1Click:Connect(function()
+			if not armed then
+				armed = true
+				U.notify("tap Delete again to confirm", C.yellow)
+				task.delay(2, function() armed = false end)
+				return
+			end
+			armed = false
+			local t = tabs[act]
+			if t.path then pcall(delfile, t.path) end
+			if #tabs == 1 then tabs[1] = { name = "script.lua", code = "" } loadTab(1)
+			else table.remove(tabs, act) loadTab(math.clamp(act - 1, 1, #tabs)) end
+			exRefresh() X.libRefresh()
+			U.notify("deleted", C.red)
+		end)
+		togB.MouseButton1Click:Connect(function() explOpen = not explOpen layoutEd() end)
+		addB.MouseButton1Click:Connect(function() X.addTab() end)
+		exNew.MouseButton1Click:Connect(function() X.addTab() end)
+		track(exSearch:GetPropertyChangedSignal("Text"):Connect(exRefresh))
+		sync() refreshTabs() exRefresh()
+		fileL.Text = tabs[act].name
+	end
+
+	PG.Library = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local pg = X.page("Library")
+		local q, tab = "", 1
+		local sb = field("search saved scripts", pg, { Size = UDim2.new(1, -84, 0, 34) })
+		local rf = btn("Refresh", 11, C.card, C.text, { Size = UDim2.fromOffset(76, 34), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 0) }, pg)
+		stroke(C.line, 1, rf)
+		local tabsF = new("Frame", { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 42), BackgroundTransparency = 1 }, pg)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, tabsF)
+		local LL = new("ScrollingFrame", { Size = UDim2.new(1, 0, 1, -78), Position = UDim2.fromOffset(0, 76), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, pg)
+		new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, LL)
+		local function row(f, i)
+			local r = new("Frame", { Size = UDim2.new(1, -6, 0, 56), BorderSizePixel = 0, LayoutOrder = i }, LL)
+			corner(10, r) surf(r, 0.05, C.card)
+			lbl(f.name, 12, C.text, { Size = UDim2.new(1, -260, 0, 16), Position = UDim2.fromOffset(12, 9), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, r)
+			lbl(f.size .. " bytes  |  " .. f.lines .. " lines", 10, C.mute, { Size = UDim2.new(1, -260, 0, 14), Position = UDim2.fromOffset(12, 28), TextTruncate = Enum.TextTruncate.AtEnd }, r)
+			local bt = new("Frame", { Size = UDim2.fromOffset(240, 26), AnchorPoint = V2(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), BackgroundTransparency = 1 }, r)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center }, bt)
+			local fav = S.fav[f.name] == true
+			local fb = btn(fav and "Fav*" or "Fav", 10, C.hover, fav and C.yellow or C.sub, { Size = UDim2.fromOffset(46, 26) }, bt)
+			local rb = btn("Run", 10, C.text, C.bg, { Size = UDim2.fromOffset(46, 26) }, bt)
+			local eb = btn("Edit", 10, C.hover, C.sub, { Size = UDim2.fromOffset(46, 26) }, bt)
+			local db = btn("Del", 10, C.hover, C.red, { Size = UDim2.fromOffset(46, 26) }, bt)
+			fb.MouseButton1Click:Connect(function() S.fav[f.name] = (not S.fav[f.name]) or nil X.libRefresh() end)
+			rb.MouseButton1Click:Connect(function() X.runFile(f.name) end)
+			eb.MouseButton1Click:Connect(function()
+				local ok, src = pcall(readfile, f.path)
+				if ok then X.addTab(f.name, src, f.path) X.switch("Editor") else U.notify("read failed", C.red) end
+			end)
+			local armed = false
+			db.MouseButton1Click:Connect(function()
+				if not armed then
+					armed = true db.Text = "Sure?"
+					task.delay(2, function() armed = false if db.Parent then db.Text = "Del" end end)
+					return
+				end
+				pcall(delfile, f.path)
+				S.fav[f.name] = nil
+				X.libRefresh()
+			end)
+		end
+		function X.libRefresh()
+			for _, c in ipairs(LL:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+			local files = {}
+			pcall(function()
+				for _, p in ipairs(listfiles(K.folder)) do
+					local n = U.nameOf(p)
+					if n:match("%.luau?$") or n:match("%.txt$") then
+						local ok, src = pcall(readfile, p)
+						src = ok and src or ""
+						files[#files + 1] = { name = n, path = p, size = #src, lines = select(2, src:gsub("\n", "\n")) + 1 }
+					end
+				end
+			end)
+			local list = {}
+			if tab == 3 then
+				for _, n in ipairs(S.recent) do for _, f in ipairs(files) do if f.name == n then list[#list + 1] = f end end end
+			else
+				for _, f in ipairs(files) do if tab == 1 or S.fav[f.name] then list[#list + 1] = f end end
+				table.sort(list, function(a, b) return a.name:lower() < b.name:lower() end)
+			end
+			local shown = 0
+			for _, f in ipairs(list) do
+				if q == "" or f.name:lower():find(q:lower(), 1, true) then
+					shown = shown + 1
+					if shown > 60 then break end
+					row(f, shown)
+				end
+			end
+			if shown == 0 then lbl(tab == 2 and "no favorites yet" or tab == 3 and "nothing run yet" or "no saved scripts, use Save in Editor or Hub", 11, C.mute, { Size = UDim2.new(1, 0, 0, 30), TextXAlignment = Enum.TextXAlignment.Center }, LL) end
+		end
+		for i, nm in ipairs({ "Saved", "Favorites", "Recent" }) do
+			local b = btn(nm, 10, C.card, C.sub, { Size = UDim2.fromOffset(84, 26) }, tabsF)
+			bind(b, "BackgroundColor3", function() return tab == i and U.A1:Lerp(C.bg, 0.72) or T.card end)
+			bind(b, "TextColor3", function() return tab == i and C.text or C.sub end)
+			b.MouseButton1Click:Connect(function() tab = i X.libRefresh() end)
+		end
+		track(sb:GetPropertyChangedSignal("Text"):Connect(function() q = sb.Text X.libRefresh() end))
+		rf.MouseButton1Click:Connect(X.libRefresh)
+		X.onShow.Library = X.libRefresh
+	end
+
+	PG.Hub = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local pg = X.page("Hub")
+		local query, hubPage, token = "", 1, 0
+		local srcOn = { scriptblox = true, rscripts = true, robloxscripts = false, haxhell = false, files = false }
+		local F = { verified = false, nokey = false, universal = false, thumb = false, views = 1, sort = 1 }
+		local sortNames, viewSteps, viewNames = { "Newest", "Views", "A-Z", "Z-A" }, { 0, 100, 1000, 10000 }, { "any", "100+", "1k+", "10k+" }
+		local lastAll, lastErrs = {}, {}
+		local search
+		local sbox = field("search scripts", pg, { Size = UDim2.new(1, -158, 0, 34) })
+		local fB = btn("Filter", 11, C.card, C.text, { Size = UDim2.fromOffset(74, 34), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -78, 0, 0) }, pg)
+		stroke(C.line, 1, fB)
+		local goB = btn("Search", 11, WHITE, WHITE, { Size = UDim2.fromOffset(72, 34), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 0) }, pg)
+		accentG(goB, 0) bind(goB, "TextColor3", ink)
+		local Res = new("ScrollingFrame", { Size = UDim2.new(1, 0, 1, -80), Position = UDim2.fromOffset(0, 42), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, pg)
+		new("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 208), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }, Res)
+		local foot = new("Frame", { Size = UDim2.new(1, 0, 0, 30), Position = UDim2.new(0, 0, 1, -30), BackgroundTransparency = 1 }, pg)
+		local prevB = btn("<", 12, C.card, C.sub, { Size = UDim2.fromOffset(30, 28) }, foot)
+		local pageL = lbl("Page 1", 11, C.text, { Size = UDim2.fromOffset(56, 28), Position = UDim2.fromOffset(34, 0), TextXAlignment = Enum.TextXAlignment.Center }, foot)
+		local nextB = btn(">", 12, C.card, C.sub, { Size = UDim2.fromOffset(30, 28), Position = UDim2.fromOffset(94, 0) }, foot)
+		local statusL = lbl("idle", 10, C.mute, { Size = UDim2.new(1, -140, 0, 28), Position = UDim2.fromOffset(134, 0), TextTruncate = Enum.TextTruncate.AtEnd }, foot)
+		local function pill(txt, col, par)
+			local f = new("Frame", { Size = UDim2.new(0, 0, 0, 16), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = col, BackgroundTransparency = 0.82, BorderSizePixel = 0 }, par)
+			corner(5, f) pad(6, 6, 0, 0, f) stroke(col, 1, f).Transparency = 0.6
+			lbl(txt, 8, col, { Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, Font = Enum.Font.GothamBold }, f)
+		end
+		local function clear() for _, c in ipairs(Res:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end end
+		local function withCode(it, cb)
+			task.spawn(function()
+				local ok, src = pcall(U.getCode, it)
+				if ok and src and src ~= "" then cb(src) else U.notify("fetch failed", C.red) warn("[Arachnid] " .. tostring(src)) end
+			end)
+		end
+		local function card(it, i)
+			local r = new("Frame", { BorderSizePixel = 0, LayoutOrder = i }, Res)
+			corner(12, r) surf(r, 0.05, C.card)
+			local th = new("Frame", { Size = UDim2.new(1, -16, 0, 96), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = WHITE, BorderSizePixel = 0, ClipsDescendants = true }, r)
+			corner(10, th)
+			new("UIGradient", { Rotation = 45, Color = ColorSequence.new(U.A1:Lerp(C.bg, 0.55), U.A2:Lerp(C.bg, 0.7)) }, th)
+			lbl(it.title:sub(1, 1):upper(), 30, C.text, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold }, th)
+			local img = new("ImageLabel", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Crop, ImageTransparency = 1 }, th)
+			if it.thumb then U.loadThumb(it.thumb, img) end
+			lbl(it.title, 12, C.text, { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.fromOffset(8, 110), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, r)
+			lbl(it.game .. "  |  " .. it.src .. (it.views > 0 and ("  |  " .. it.views) or ""), 9, C.sub, { Size = UDim2.new(1, -16, 0, 13), Position = UDim2.fromOffset(8, 127), TextTruncate = Enum.TextTruncate.AtEnd }, r)
+			local pr = new("Frame", { Size = UDim2.new(1, -16, 0, 16), Position = UDim2.fromOffset(8, 144), BackgroundTransparency = 1 }, r)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4) }, pr)
+			if it.verified then pill("VERIFIED", C.green, pr) end
+			pill(it.key and "KEY" or "NO KEY", it.key and C.red or C.green, pr)
+			if it.universal then pill("UNIVERSAL", C.blue, pr) end
+			local bt = new("Frame", { Size = UDim2.new(1, -16, 0, 26), Position = UDim2.fromOffset(8, 172), BackgroundTransparency = 1 }, r)
+			new("UIGridLayout", { CellSize = UDim2.new(0.25, -5, 1, 0), CellPadding = UDim2.fromOffset(6, 0) }, bt)
+			btn("Run", 10, C.text, C.bg, {}, bt).MouseButton1Click:Connect(function() withCode(it, function(s) X.runCode(s, it.title) end) end)
+			btn("Edit", 10, C.hover, C.sub, {}, bt).MouseButton1Click:Connect(function() withCode(it, function(s) X.addTab(it.title:sub(1, 14), s) X.switch("Editor") end) end)
+			btn("Copy", 10, C.hover, C.sub, {}, bt).MouseButton1Click:Connect(function() withCode(it, function(s) pcall(setclipboard, s) U.notify("copied", C.blue) end) end)
+			btn("Save", 10, C.hover, C.sub, {}, bt).MouseButton1Click:Connect(function()
+				withCode(it, function(s)
+					local ok, n = U.saveScript(it.title, s)
+					U.notify(ok and ("saved " .. n) or "save failed", ok and C.green or C.red)
+					if ok then X.libRefresh() end
+				end)
+			end)
+		end
+		local sorters = {
+			function(a, b) return tostring(a.date) > tostring(b.date) end,
+			function(a, b) return (a.views or 0) > (b.views or 0) end,
+			function(a, b) return a.title:lower() < b.title:lower() end,
+			function(a, b) return a.title:lower() > b.title:lower() end,
+		}
+		local function rerender()
+			clear()
+			local list = {}
+			for _, it in ipairs(lastAll) do
+				if (not F.verified or it.verified) and (not F.nokey or not it.key) and (not F.universal or it.universal) and (not F.thumb or it.thumb) and (it.views or 0) >= viewSteps[F.views] then list[#list + 1] = it end
+			end
+			table.sort(list, sorters[F.sort])
+			for i, it in ipairs(list) do if i > K.maxResults then break end card(it, i) end
+			local msg = #list .. " results"
+			if #lastErrs > 0 then msg = msg .. "  |  failed: " .. table.concat(lastErrs, ", ") end
+			statusL.Text = msg
+			statusL.TextColor3 = #lastErrs > 0 and C.yellow or C.mute
+			pageL.Text = "Page " .. hubPage
+			local n = 0
+			for _, k in ipairs({ "verified", "nokey", "universal", "thumb" }) do if F[k] then n = n + 1 end end
+			if F.views > 1 then n = n + 1 end
+			if F.sort > 1 then n = n + 1 end
+			fB.Text = n > 0 and ("Filter " .. n) or "Filter"
+		end
+		function search()
+			token = token + 1
+			local my = token
+			clear()
+			for i = 1, 6 do
+				local f = new("Frame", { BackgroundColor3 = C.card, BorderSizePixel = 0, LayoutOrder = i }, Res)
+				corner(12, f)
+				if S.anim then Sv.TweenService:Create(f, TweenInfo.new(0.7 + i * 0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { BackgroundColor3 = C.hover }):Play() end
+			end
+			statusL.Text, statusL.TextColor3 = "searching...", C.sub
+			lastAll, lastErrs = {}, {}
+			local pending = 0
+			for _, id in ipairs(U.PORDER) do
+				if srcOn[id] then
+					pending = pending + 1
+					task.spawn(function()
+						local ok, res = pcall(P[id].fetch, query, hubPage)
+						if token == my then
+							if ok then for _, it in ipairs(res) do lastAll[#lastAll + 1] = it end U.pstat[id] = true
+							else lastErrs[#lastErrs + 1] = P[id].name U.pstat[id] = false end
+							X.paintProviders()
+						end
+						pending = pending - 1
+					end)
+				end
+			end
+			task.spawn(function()
+				local t0 = os.clock()
+				while pending > 0 and os.clock() - t0 < 12 and token == my do task.wait(0.1) end
+				if token == my then rerender() end
+			end)
+		end
+		X.hubFirst = search
+		local deb = 0
+		local function later() deb = deb + 1 local my = deb task.delay(0.6, function() if my == deb then search() end end) end
+
+		local FP = new("Frame", { Size = UDim2.new(1, 0, 1, -48), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 40), BorderSizePixel = 0, Visible = false, ZIndex = 30 }, pg)
+		corner(12, FP) surf(FP, -0.1, C.panel)
+		new("UISizeConstraint", { MaxSize = V2(330, 300) }, FP)
+		local FS = new("ScrollingFrame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ZIndex = 31 }, FP)
+		new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, FS)
+		pad(10, 10, 10, 10, FS)
+		local function sec(txt, o) lbl(txt, 10, C.mute, { Size = UDim2.new(1, 0, 0, 14), LayoutOrder = o, Font = Enum.Font.GothamBold, ZIndex = 32 }, FS) end
+		local function cgrid(o, h)
+			local g = new("Frame", { Size = UDim2.new(1, 0, 0, h), BackgroundTransparency = 1, LayoutOrder = o, ZIndex = 32 }, FS)
+			new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -4, 0, 26), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }, g)
+			return g
+		end
+		local function chip(txt, get, par, order, cb)
+			local b = new("TextButton", { Text = txt, TextSize = 9, Font = Enum.Font.GothamBold, TextColor3 = C.sub, AutoButtonColor = false, BorderSizePixel = 0, BackgroundColor3 = C.card, TextTruncate = Enum.TextTruncate.AtEnd, LayoutOrder = order, ZIndex = 33 }, par)
+			corner(8, b)
+			local st = stroke(C.line, 1, b)
+			bind(b, "BackgroundColor3", function() return get() and U.A1:Lerp(C.bg, 0.72) or T.card end)
+			bind(st, "Color", function() return get() and U.A1 or C.line end)
+			bind(b, "TextColor3", function() return get() and C.text or C.sub end)
+			b.MouseButton1Click:Connect(function() cb(b) end)
+			return b
+		end
+		sec("SOURCES", 1)
+		local g1 = cgrid(2, 58)
+		for i, id in ipairs(U.PORDER) do chip(P[id].name, function() return srcOn[id] end, g1, i, function() srcOn[id] = not srcOn[id] later() end) end
+		sec("FILTERS", 3)
+		local g2 = cgrid(4, 58)
+		chip("Verified", function() return F.verified end, g2, 1, function() F.verified = not F.verified rerender() end)
+		chip("No key", function() return F.nokey end, g2, 2, function() F.nokey = not F.nokey rerender() end)
+		chip("Universal", function() return F.universal end, g2, 3, function() F.universal = not F.universal rerender() end)
+		chip("Has image", function() return F.thumb end, g2, 4, function() F.thumb = not F.thumb rerender() end)
+		sec("SORT / VIEWS", 5)
+		local g3 = cgrid(6, 26)
+		local sortC = chip("Sort: Newest", function() return F.sort > 1 end, g3, 1, function(b) F.sort = F.sort % #sortNames + 1 b.Text = "Sort: " .. sortNames[F.sort] rerender() end)
+		local viewC = chip("Views: any", function() return F.views > 1 end, g3, 2, function(b) F.views = F.views % #viewSteps + 1 b.Text = "Views: " .. viewNames[F.views] rerender() end)
+		chip("Reset", function() return false end, g3, 3, function()
+			F.verified, F.nokey, F.universal, F.thumb, F.views, F.sort = false, false, false, false, 1, 1
+			sortC.Text, viewC.Text = "Sort: Newest", "Views: any"
+			rerender()
+		end)
+		local fOpen = false
+		fB.MouseButton1Click:Connect(function()
+			fOpen = not fOpen
+			if fOpen then
+				FP.Visible, FP.Position = true, UDim2.new(1, 0, 0, 30)
+				tw(FP, { Position = UDim2.new(1, 0, 0, 40) }, 0.25, nil, Enum.EasingStyle.Back)
+			else
+				tw(FP, { Position = UDim2.new(1, 0, 0, 30) }, 0.15, function() if not fOpen then FP.Visible = false end end)
+			end
+		end)
+		goB.MouseButton1Click:Connect(function() query = sbox.Text hubPage = 1 search() end)
+		track(sbox.FocusLost:Connect(function(enter) if enter then query = sbox.Text hubPage = 1 search() end end))
+		prevB.MouseButton1Click:Connect(function() if hubPage > 1 then hubPage = hubPage - 1 search() end end)
+		nextB.MouseButton1Click:Connect(function() hubPage = hubPage + 1 search() end)
+	end
+
+	PG.Console = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local pg = X.page("Console")
+		local logs, rows, cfilt, follow, q, lcount = {}, {}, 1, true, "", 0
+		local cnt = { 0, 0, 0, 0, 0 }
+		local MT = Enum.MessageType
+		local KIND = { [MT.MessageError] = 2, [MT.MessageWarning] = 3, [MT.MessageOutput] = 4, [MT.MessageInfo] = 5 }
+		local NAMES = { "All", "Errors", "Warns", "Output", "Info" }
+		local COL = { C.text, C.red, C.yellow, C.text, C.blue }
+		local TAG = { "", "ERR", "WARN", "OUT", "INFO" }
+
+		-- header
+		local head = new("Frame", { Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1 }, pg)
+		local hi = icon("terminal", ">_", 16, C.text, head)
+		hi.f.Position = UDim2.fromOffset(2, 7)
+		lbl("Console", 13, C.text, { Size = UDim2.fromOffset(70, 30), Position = UDim2.fromOffset(24, 0), Font = Enum.Font.GothamBold }, head)
+		local hb = new("ScrollingFrame", { Size = UDim2.new(1, -100, 1, 0), Position = UDim2.fromOffset(98, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X }, head)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), HorizontalAlignment = Enum.HorizontalAlignment.Right, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, hb)
+		local rbB = btn("Roblox Console", 10, WHITE, WHITE, { Size = UDim2.fromOffset(104, 26), LayoutOrder = 1 }, hb)
+		accentG(rbB, 0) bind(rbB, "TextColor3", ink)
+		local folB = btn("Follow", 10, C.card, C.green, { Size = UDim2.fromOffset(54, 26), LayoutOrder = 2 }, hb)
+		local cpB = btn("Copy", 10, C.card, C.sub, { Size = UDim2.fromOffset(46, 26), LayoutOrder = 3 }, hb)
+		local clB = btn("Clear", 10, C.card, C.sub, { Size = UDim2.fromOffset(46, 26), LayoutOrder = 4 }, hb)
+
+		-- filter chips + search
+		local fr = new("Frame", { Size = UDim2.new(1, 0, 0, 28), Position = UDim2.fromOffset(0, 34), BackgroundTransparency = 1 }, pg)
+		local chipsF = new("ScrollingFrame", { Size = UDim2.new(1, -150, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X }, fr)
+		new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 5), VerticalAlignment = Enum.VerticalAlignment.Center }, chipsF)
+		local chips = {}
+		local sbox = field("search logs", fr, { Size = UDim2.fromOffset(142, 26), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 1) })
+		sbox.TextSize = 11
+
+		-- list
+		local cs = new("ScrollingFrame", { Size = UDim2.new(1, 0, 1, -104), Position = UDim2.fromOffset(0, 66), BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, pg)
+		corner(12, cs) surf(cs, 0.15, C.panel)
+		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1) }, cs)
+		pad(8, 8, 6, 6, cs)
+
+		-- command bar
+		local cmd = new("Frame", { Size = UDim2.new(1, 0, 0, 32), Position = UDim2.new(0, 0, 1, -32), BackgroundTransparency = 1 }, pg)
+		local cbox = field("run lua in console, press enter", cmd, { Size = UDim2.new(1, -78, 1, 0) })
+		cbox.Font, cbox.TextSize = Enum.Font.Code, 11
+		local cRun = btn("Run", 11, C.text, C.bg, { Size = UDim2.fromOffset(70, 32), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 0) }, cmd)
+
+		local function esc(s) return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")) end
+		local function matches(e) return (cfilt == 1 or e.k == cfilt) and (q == "" or e.msg:lower():find(q, 1, true) ~= nil) end
+		local function draw(e)
+			lcount = lcount + 1
+			local c = COL[e.k]
+			local txt = '<font color="#' .. C.mute:ToHex() .. '">' .. e.ts .. '</font>  <font color="#' .. c:ToHex() .. '"><b>' .. (TAG[e.k] ~= "" and ("[" .. TAG[e.k] .. "]") or "") .. '</b></font>  ' .. esc(e.msg)
+			local r = new("TextLabel", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Text = txt, RichText = true, TextWrapped = true,
+				TextColor3 = C.text, TextSize = 11, Font = Enum.Font.Code, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = lcount }, cs)
+			rows[#rows + 1] = r
+			if #rows > 300 then table.remove(rows, 1):Destroy() end
+			if follow then cs.CanvasPosition = V2(0, 1e6) end
+		end
+		local function chipText()
+			for i, b in ipairs(chips) do b.Text = NAMES[i] .. " " .. cnt[i] end
+		end
+		local function redraw()
+			for _, r in ipairs(rows) do r:Destroy() end
+			rows = {}
+			local start = math.max(1, #logs - 300)
+			for i = start, #logs do if matches(logs[i]) then draw(logs[i]) end end
+		end
+		local function add(msg, t, ts)
+			local k = KIND[t] or 4
+			local e = { msg = tostring(msg), k = k, ts = ts or os.date("%H:%M:%S") }
+			logs[#logs + 1] = e
+			if #logs > 600 then table.remove(logs, 1) end
+			cnt[1] = cnt[1] + 1
+			cnt[k] = cnt[k] + 1
+			chipText()
+			if matches(e) then draw(e) end
+		end
+		for i = 1, 5 do
+			local b = btn(NAMES[i] .. " 0", 10, C.card, C.sub, { Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = i }, chipsF)
+			pad(10, 10, 0, 0, b)
+			bind(b, "BackgroundColor3", function() return cfilt == i and U.A1:Lerp(C.bg, 0.72) or T.card end)
+			bind(b, "TextColor3", function() return cfilt == i and C.text or C.sub end)
+			b.MouseButton1Click:Connect(function() cfilt = i redraw() end)
+			chips[i] = b
+		end
+		pcall(function()
+			for _, h in ipairs(Sv.LogService:GetLogHistory()) do add(h.message, h.messageType, os.date("%H:%M:%S", h.timestamp or os.time())) end
+		end)
+		track(Sv.LogService.MessageOut:Connect(function(msg, t) add(msg, t) end))
+		track(sbox:GetPropertyChangedSignal("Text"):Connect(function() q = sbox.Text:lower() redraw() end))
+		folB.MouseButton1Click:Connect(function() follow = not follow folB.TextColor3 = follow and C.green or C.sub end)
+		clB.MouseButton1Click:Connect(function() logs, cnt = {}, { 0, 0, 0, 0, 0 } chipText() redraw() end)
+		cpB.MouseButton1Click:Connect(function()
+			local t = {}
+			for _, e in ipairs(logs) do t[#t + 1] = e.ts .. " " .. e.msg end
+			pcall(setclipboard, table.concat(t, "\n")) U.notify("console copied", C.blue)
+		end)
+		rbB.MouseButton1Click:Connect(U.openRobloxConsole)
+		local function runCmd()
+			local s = cbox.Text
+			if s == "" then return end
+			cbox.Text = ""
+			local fn, e = loadstring(s)
+			if not fn then warn("[Arachnid] " .. tostring(e)) return end
+			task.spawn(function() local ok, e2 = pcall(fn) if not ok then warn("[Arachnid] " .. tostring(e2)) end end)
+		end
+		cRun.MouseButton1Click:Connect(runCmd)
+		cbox.FocusLost:Connect(function(enter) if enter then runCmd() end end)
+		chipText()
+	end
+
+	PG.Themes = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local sc = X.scroller(X.page("Themes"))
+		lbl("Themes (saved themes last until unload)", 13, C.text, { Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, LayoutOrder = 1 }, sc)
+		local tg = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = 2 }, sc)
+		new("UIGridLayout", { CellSize = UDim2.fromOffset(122, 46), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }, tg)
+		local rainbow = ColorSequence.new({ ColorSequenceKeypoint.new(0, rgb(255, 90, 90)), ColorSequenceKeypoint.new(0.33, rgb(255, 220, 90)), ColorSequenceKeypoint.new(0.66, rgb(90, 220, 255)), ColorSequenceKeypoint.new(1, rgb(200, 90, 255)) })
+		function X.rebuildThemes()
+			for _, c in ipairs(tg:GetChildren()) do if c:IsA("GuiObject") then c:Destroy() end end
+			for i, th in ipairs(U.TH) do
+				local c = new("TextButton", { LayoutOrder = i, Text = "", AutoButtonColor = false, BackgroundColor3 = C.card, BorderSizePixel = 0 }, tg)
+				corner(10, c)
+				U.roles[#U.roles + 1] = { o = c, p = "BackgroundColor3", r = "card" }
+				local st = stroke(C.line, 1, c)
+				bind(st, "Color", function() return S.theme == i and U.A1 or T.line end)
+				local sw = new("Frame", { Size = UDim2.fromOffset(28, 28), Position = UDim2.fromOffset(9, 9), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, c)
+				corner(8, sw)
+				local g = new("UIGradient", { Rotation = 45 }, sw)
+				bind(g, "Color", function()
+					if th.rainbow then return rainbow end
+					if th.custom then return ColorSequence.new(U.customCols()) end
+					return ColorSequence.new(th.c1, th.c2)
+				end)
+				lbl(th.name, 11, C.text, { Size = UDim2.new(1, -62, 1, 0), Position = UDim2.fromOffset(44, 0), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, c)
+				c.MouseButton1Click:Connect(function() S.theme = i U.notify("theme: " .. th.name, U.A1) end)
+				if th.user then
+					btn("x", 10, C.hover, C.sub, { Size = UDim2.fromOffset(18, 18), Position = UDim2.new(1, -22, 0, 4), ZIndex = 3 }, c).MouseButton1Click:Connect(function()
+						table.remove(S.mythemes, th.mi)
+						if S.theme == i then S.theme = 1 elseif S.theme > i then S.theme = S.theme - 1 end
+						U.buildTH() X.rebuildThemes()
+					end)
+				end
+			end
+		end
+		X.rebuildThemes()
+		local row = new("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundTransparency = 1, LayoutOrder = 3 }, sc)
+		local nb = field("name for current colors", row, { Size = UDim2.new(1, -110, 1, 0) })
+		local sb = btn("Save theme", 10, WHITE, WHITE, { Size = UDim2.fromOffset(102, 34), AnchorPoint = V2(1, 0), Position = UDim2.new(1, 0, 0, 0) }, row)
+		accentG(sb, 0) bind(sb, "TextColor3", ink)
+		sb.MouseButton1Click:Connect(function()
+			if #S.mythemes >= 12 then U.notify("limit: 12 saved themes", C.yellow) return end
+			local nm = (nb.Text:gsub("[^%w%s_%-]", "")):sub(1, 16)
+			if nm == "" then nm = "Theme " .. (#S.mythemes + 1) end
+			local th = U.TH[S.theme] or U.TH[1]
+			local a, b = th.c1, th.c2
+			if th.custom then a, b = U.customCols() end
+			S.mythemes[#S.mythemes + 1] = { n = nm, a = a:ToHex():upper(), b = b:ToHex():upper() }
+			U.buildTH()
+			S.theme = #U.TH
+			X.rebuildThemes()
+			nb.Text = ""
+			U.notify("saved theme: " .. nm, C.green)
+		end)
+		lbl("Color speed", 13, C.text, { Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, LayoutOrder = 4 }, sc)
+		local _, st = X.controls(X.cgrid(sc, 5))
+		st("Color speed", "cspeed", 0.25, 4, 0.25, function(v) return v .. "x" end, function() end)
+		lbl("Custom color", 13, C.text, { Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, LayoutOrder = 6 }, sc)
+		local pk = new("Frame", { Size = UDim2.new(1, 0, 0, 150), BorderSizePixel = 0, LayoutOrder = 7 }, sc)
+		corner(10, pk) surf(pk, 0.05, C.card)
+		local ca, cb = U.customCols()
+		local h1, s1, v1 = ca:ToHSV()
+		local h2, s2, v2 = cb:ToHSV()
+		local hsv, target = { { h1, s1, v1 }, { h2, s2, v2 } }, 1
+		local sv = new("Frame", { Size = UDim2.fromOffset(150, 120), Position = UDim2.fromOffset(12, 14), BorderSizePixel = 0, BackgroundColor3 = WHITE }, pk)
+		corner(8, sv)
+		local wh = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, sv)
+		corner(8, wh) new("UIGradient", { Transparency = NumberSequence.new(0, 1) }, wh)
+		local bk = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0 }, sv)
+		corner(8, bk) new("UIGradient", { Rotation = 90, Transparency = NumberSequence.new(1, 0) }, bk)
+		local cur = new("Frame", { Size = UDim2.fromOffset(12, 12), AnchorPoint = V2(0.5, 0.5), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 3 }, sv)
+		corner(6, cur) stroke(WHITE, 2, cur)
+		local hbar = new("Frame", { Size = UDim2.fromOffset(16, 120), Position = UDim2.fromOffset(172, 14), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, pk)
+		corner(8, hbar)
+		local hk = {}
+		for i = 0, 6 do hk[#hk + 1] = ColorSequenceKeypoint.new(i / 6, Color3.fromHSV(i / 6, 1, 1)) end
+		new("UIGradient", { Rotation = 90, Color = ColorSequence.new(hk) }, hbar)
+		local hcur = new("Frame", { Size = UDim2.new(1, 6, 0, 4), AnchorPoint = V2(0.5, 0.5), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 3 }, hbar)
+		corner(2, hcur) stroke(Color3.new(0, 0, 0), 1, hcur)
+		local prev = new("Frame", { Size = UDim2.new(1, -212, 0, 34), Position = UDim2.fromOffset(200, 14), BorderSizePixel = 0, BackgroundColor3 = WHITE }, pk)
+		corner(8, prev)
+		local hexL = lbl("#FFFFFF", 10, C.sub, { Size = UDim2.new(1, -212, 0, 14), Position = UDim2.fromOffset(200, 52), Font = Enum.Font.Code }, pk)
+		local pB = btn("Primary", 9, C.hover, C.text, { Size = UDim2.new(1, -212, 0, 24), Position = UDim2.fromOffset(200, 72) }, pk)
+		local sB = btn("Second", 9, C.hover, C.sub, { Size = UDim2.new(1, -212, 0, 24), Position = UDim2.fromOffset(200, 100) }, pk)
+		local function refresh()
+			local h, s, v = table.unpack(hsv[target])
+			sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+			cur.Position = UDim2.fromScale(s, 1 - v)
+			hcur.Position = UDim2.fromScale(0.5, h)
+			local c = Color3.fromHSV(h, s, v)
+			prev.BackgroundColor3 = c
+			hexL.Text = "#" .. c:ToHex():upper()
+			pB.TextColor3 = target == 1 and C.text or C.sub
+			sB.TextColor3 = target == 2 and C.text or C.sub
+		end
+		local function commit()
+			S[target == 1 and "c1" or "c2"] = Color3.fromHSV(table.unpack(hsv[target])):ToHex():upper()
+			S.theme = CUSTOM
+			refresh()
+		end
+		U.dragArea(sv, function(x, y) hsv[target][2], hsv[target][3] = x, 1 - y commit() end)
+		U.dragArea(hbar, function(_, y) hsv[target][1] = y commit() end)
+		pB.MouseButton1Click:Connect(function() target = 1 refresh() end)
+		sB.MouseButton1Click:Connect(function() target = 2 refresh() end)
+		refresh()
+	end
+
+	PG.Settings = function(X)
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local sc = X.scroller(X.page("Settings"))
+		lbl("Appearance", 13, C.text, { Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, LayoutOrder = 1 }, sc)
+		local tgl, stp = X.controls(X.cgrid(sc, 2))
+		local function pct(v) return math.floor(v * 100 + 0.5) .. "%" end
+		tgl("Glass mode", "glass", function() U.restyle() end)
+		stp("Transparency", "alpha", 0, 0.9, 0.05, pct, function() U.restyle() end)
+		stp("Theme tint", "tint", 0, 1, 0.1, pct, function() end)
+		tgl("Gradient", "grad", function() U.restyle() end)
+		tgl("Animations", "anim", function() U.restyle() end)
+		tgl("Particles", "particles", function() X.setParticles() end)
+		stp("Particle count", "pcount", 10, 80, 5, tostring, function() X.setParticles() end)
+		tgl("Sound line", "viz", function() X.layout() end)
+		stp("Glow speed", "speed", 0.5, 3, 0.25, function(v) return v .. "x" end, function() U.restyle() end)
+		stp("Glow thickness", "thick", 1, 4, 1, tostring, function() U.restyle() end)
+		stp("Window size", "wsize", 0.5, 0.95, 0.05, pct, function(v) tw(X.Win, { Size = UDim2.fromScale(v, v) }, 0.3) end)
+		tgl("Background blur", "blur", function() U.setBlur(U.open) end)
+		stp("Button X", "bx", 0, 1400, 10, tostring, function() X.placeToggle() end)
+		stp("Button Y", "by", 0, 200, 2, tostring, function() X.placeToggle() end)
+		lbl("General", 13, C.text, { Size = UDim2.new(1, 0, 0, 20), Font = Enum.Font.GothamBold, LayoutOrder = 3 }, sc)
+		local tgl2, _, act2 = X.controls(X.cgrid(sc, 4))
+		tgl2("Notifications", "notify")
+		tgl2("Streamer mode", "stream", function() X.setNames() end)
+		act2("Toggle key", S.key, C.hover, function(b)
+			local idx = 1
+			for i, k in ipairs(K.toggleKeys) do if k == S.key then idx = i end end
+			S.key = K.toggleKeys[idx % #K.toggleKeys + 1]
+			b.Text = S.key
+			U.notify("toggle key: " .. S.key, C.blue)
+		end)
+		act2("Roblox console", "Open", C.blue, function() U.openRobloxConsole() end)
+		act2("Clear thumbnails", "Clear", C.yellow, function()
+			pcall(function() for _, f in ipairs(listfiles(K.cache)) do delfile(f) end end)
+			U.thumbCache = {}
+			U.notify("thumbnail cache cleared", C.yellow)
+		end)
+		act2("Re-check providers", "Check", C.blue, function()
+			for _, id in ipairs(U.PORDER) do task.spawn(function() U.pstat[id] = pcall(P[id].fetch, "", 1) X.paintProviders() end) end
+		end)
+		act2("Icon names", "Dump", C.blue, function()
+			local k = {}
+			for name in pairs(U.IC) do k[#k + 1] = tostring(name) end
+			table.sort(k)
+			local txt = #k > 0 and table.concat(k, ", ") or "no lucide icons loaded"
+			print("[Arachnid] icons (" .. #k .. "): " .. txt)
+			pcall(setclipboard, txt)
+			U.notify(#k .. " icon names copied", C.blue)
+		end)
+		act2("Unload Arachnid", "Unload", C.red, U.unload)
+	end
+
+	-- =================== BUILD ===================
+	local function build()
+		local new, tw, lbl, btn, corner, pad, stroke, accentG, bind, surf, ink, field, icon, track = table.unpack(U.H)
+		local X = { onShow = {}, pages = {}, cur = nil }
+		X.libRefresh, X.setParticles, X.layout, X.setNames, X.paintProviders, X.rebuildThemes, X.placeToggle = function() end, function() end, function() end, function() end, function() end, function() end, function() end
+
+		local Win = new("Frame", { Name = "Win", Size = UDim2.fromScale(S.wsize, S.wsize), AnchorPoint = V2(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.55), BorderSizePixel = 0, Visible = false, ClipsDescendants = true }, Root)
+		X.Win = Win
+		corner(14, Win) surf(Win, 0, C.bg) U.glow(Win)
+		local WS = new("UIScale", { Scale = 0.9 }, Win)
+
+		do -- particles
+			local PL = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, ZIndex = 0 }, Win)
+			local parts = {}
+			function X.setParticles()
+				for _, p in ipairs(parts) do p.f:Destroy() end
+				parts = {}
+				if not S.particles then return end
+				for i = 1, S.pcount do
+					local sz = math.random(2, 4)
+					local f = new("Frame", { Size = UDim2.fromOffset(sz, sz), AnchorPoint = V2(0.5, 0.5), BackgroundColor3 = U.A1, BackgroundTransparency = 0.35 + math.random() * 0.45, BorderSizePixel = 0 }, PL)
+					corner(4, f)
+					parts[i] = { f = f, x = math.random(), y = math.random(), vx = (math.random() - 0.5) * 0.03, vy = -(0.012 + math.random() * 0.04), k = i / S.pcount }
+				end
+			end
+			U.hooks[#U.hooks + 1] = function(dt, t)
+				for _, p in ipairs(parts) do
+					p.x = (p.x + p.vx * dt + math.sin(t * 0.5 + p.k * 20) * 0.0006) % 1
+					p.y = (p.y + p.vy * dt) % 1
+					p.f.Position = UDim2.fromScale(p.x, p.y)
+					p.f.BackgroundColor3 = U.A1:Lerp(U.A2, p.k)
+				end
+			end
+			X.setParticles()
+		end
+
+		local TB = new("Frame", { Size = UDim2.new(1, 0, 0, 52), BackgroundTransparency = 1 }, Win)
+		local MinB, CloseB
+		do -- titlebar (fixed, not draggable)
+			new("Frame", { Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 1, -1), BackgroundColor3 = C.line, BackgroundTransparency = 0.4, BorderSizePixel = 0 }, TB)
+			local lg = U.logo(TB, 32, { Position = UDim2.fromOffset(12, 10) })
+			U.glow(lg, 1)
+			lbl("Arachnid", 14, C.text, { Size = UDim2.fromOffset(140, 16), Position = UDim2.fromOffset(52, 9), Font = Enum.Font.GothamBold }, TB)
+			bind(lbl("", 9, C.mute, { Size = UDim2.fromOffset(180, 12), Position = UDim2.fromOffset(52, 27) }, TB), "Text", function() return "Welcome back, " .. (S.stream and "streamer" or lp.DisplayName) end)
+			local exp = new("Frame", { Size = UDim2.fromOffset(112, 26), Position = UDim2.new(1, -192, 0, 13), BorderSizePixel = 0 }, TB)
+			corner(13, exp) surf(exp, 0.05, C.card)
+			local ci = icon("clock", "o", 12, C.sub, exp)
+			ci.f.Position = UDim2.fromOffset(9, 7)
+			bind(lbl("", 10, C.text, { Size = UDim2.new(1, -30, 1, 0), Position = UDim2.fromOffset(26, 0), Font = Enum.Font.GothamBold }, exp), "Text", function() return "Key: " .. U.expText() end)
+			MinB = btn("-", 14, C.card, C.sub, { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -72, 0, 12) }, TB)
+			CloseB = btn("x", 12, C.card, C.sub, { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(1, -38, 0, 12) }, TB)
+			local VZ = new("Frame", { AnchorPoint = V2(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0.22, 0, 0, 30), BackgroundTransparency = 1 }, TB)
+			local vz = U.makeViz(VZ, 30, 3)
+			U.hooks[#U.hooks + 1] = function(dt, t) if S.viz then vz(dt, t) end end
+			function X.layout()
+				local w = Win.AbsoluteSize.X
+				VZ.Visible = S.viz and w >= 640
+				exp.Visible = w >= 520
+			end
+			track(Win:GetPropertyChangedSignal("AbsoluteSize"):Connect(X.layout))
+			X.layout()
+		end
+		local TopBar = new("Frame", { Size = UDim2.new(0, 0, 0, 2), BackgroundColor3 = WHITE, BorderSizePixel = 0, ZIndex = 20 }, Win)
+		accentG(TopBar, 0)
+		local Body = new("Frame", { Size = UDim2.new(1, 0, 1, -52), Position = UDim2.fromOffset(0, 52), BackgroundTransparency = 1 }, Win)
+		local SB = new("ScrollingFrame", { Size = UDim2.new(0, 56, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, Body)
+		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }, SB)
+		pad(0, 0, 6, 6, SB)
+		new("Frame", { Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(0, 56, 0, 0), BackgroundColor3 = C.line, BackgroundTransparency = 0.4, BorderSizePixel = 0 }, Body)
+		local CP = new("Frame", { Size = UDim2.new(1, -57, 1, 0), Position = UDim2.fromOffset(57, 0), BackgroundTransparency = 1 }, Body)
+
+		local navSet = function() end
+		function X.page(name)
+			local p = new("Frame", { Name = name, Size = UDim2.new(1, -24, 1, -24), Position = UDim2.fromOffset(12, 12), BackgroundTransparency = 1, Visible = false }, CP)
+			X.pages[name] = p
+			return p
+		end
+		function X.scroller(par, pd)
+			local s = new("ScrollingFrame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = C.line, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y }, par)
+			new("UIListLayout", { Padding = UDim.new(0, pd or 8), SortOrder = Enum.SortOrder.LayoutOrder }, s)
+			return s
+		end
+		function X.hrow(par, h, order)
+			local r = new("ScrollingFrame", { Size = UDim2.new(1, 0, 0, h), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.X, LayoutOrder = order }, par)
+			new("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8), VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder }, r)
+			return r
+		end
+		function X.switch(name)
+			if X.cur == name or not X.pages[name] then return end
+			for n, p in pairs(X.pages) do if n ~= name then p.Visible = false end end
+			local p = X.pages[name]
+			p.Position = UDim2.fromOffset(12, 24)
+			p.Visible = true
+			tw(p, { Position = UDim2.fromOffset(12, 12) }, 0.3)
+			X.cur = name
+			navSet(name)
+			if X.onShow[name] then pcall(X.onShow[name]) end
+			if name == "Hub" and X.hubFirst then local f = X.hubFirst X.hubFirst = nil f() end
+		end
+		function X.runCode(src, label)
+			local fn, e = loadstring(src, "=" .. label)
+			if not fn then U.notify("compile error", C.red) warn("[Arachnid] " .. tostring(e)) return end
+			task.spawn(function()
+				local ok, e2 = pcall(fn)
+				if ok then U.notify("ran " .. label, C.green) else U.notify("run error", C.red) warn("[Arachnid] " .. tostring(e2)) end
+			end)
+		end
+		function X.runFile(name)
+			local ok, src = pcall(readfile, K.folder .. "/" .. name)
+			if not ok then U.notify("read failed", C.red) return end
+			U.pushRecent(name)
+			X.runCode(src, name)
+		end
+		function X.cgrid(par, o)
+			local g = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = o }, par)
+			new("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 66), CellPadding = UDim2.fromOffset(8, 8), SortOrder = Enum.SortOrder.LayoutOrder }, g)
+			return g
+		end
+		function X.controls(grid)
+			local order = 0
+			local function cell(name)
+				order = order + 1
+				local c = new("Frame", { LayoutOrder = order, BorderSizePixel = 0 }, grid)
+				corner(10, c) surf(c, 0.05, C.card)
+				lbl(name, 11, C.text, { Size = UDim2.new(1, -20, 0, 16), Position = UDim2.fromOffset(12, 8), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, c)
+				return c
+			end
+			local function toggle(name, key, cb)
+				local c = cell(name)
+				local tr = new("TextButton", { Size = UDim2.fromOffset(42, 22), Position = UDim2.fromOffset(12, 34), Text = "", AutoButtonColor = false, BorderSizePixel = 0, BackgroundColor3 = C.hover }, c)
+				corner(11, tr)
+				bind(tr, "BackgroundColor3", function() return S[key] and U.A1:Lerp(C.bg, 0.25) or T.hover end)
+				local kn = new("Frame", { Size = UDim2.fromOffset(16, 16), BackgroundColor3 = C.text, BorderSizePixel = 0 }, tr)
+				corner(8, kn)
+				local function paint(instant)
+					local pos = S[key] and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+					if instant then kn.Position = pos else tw(kn, { Position = pos }, 0.22, nil, Enum.EasingStyle.Back) end
+				end
+				paint(true)
+				tr.MouseButton1Click:Connect(function() S[key] = not S[key] paint() if cb then cb(S[key]) end end)
+			end
+			local function stepper(name, key, lo, hi, step, fmt, cb)
+				local c = cell(name)
+				local f = new("Frame", { Size = UDim2.fromOffset(110, 26), Position = UDim2.fromOffset(12, 32), BackgroundColor3 = C.hover, BorderSizePixel = 0 }, c)
+				corner(8, f)
+				U.roles[#U.roles + 1] = { o = f, p = "BackgroundColor3", r = "hover" }
+				local v = lbl(fmt(S[key]), 10, C.text, { Size = UDim2.new(1, -52, 1, 0), Position = UDim2.fromOffset(26, 0), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold }, f)
+				local function bump(d)
+					S[key] = math.clamp(math.floor((S[key] + d * step) / step + 0.5) * step, lo, hi)
+					v.Text = fmt(S[key]) cb(S[key])
+				end
+				btn("-", 12, C.hover, C.sub, { Size = UDim2.fromOffset(24, 26), BackgroundTransparency = 1 }, f).MouseButton1Click:Connect(function() bump(-1) end)
+				btn("+", 12, C.hover, C.sub, { Size = UDim2.fromOffset(24, 26), Position = UDim2.new(1, -24, 0, 0), BackgroundTransparency = 1 }, f).MouseButton1Click:Connect(function() bump(1) end)
+			end
+			local function action(name, label, col, cb)
+				local c = cell(name)
+				local b = btn(label, 10, col, WHITE, { Size = UDim2.fromOffset(96, 26), Position = UDim2.fromOffset(12, 32) }, c)
+				b.MouseButton1Click:Connect(function() cb(b) end)
+			end
+			return toggle, stepper, action
+		end
+
+		for _, n in ipairs({ "Home", "Editor", "Library", "Hub", "Console", "Themes", "Settings" }) do
+			print("[Arachnid] page: " .. n)
+			local ok, e = pcall(PG[n], X)
+			if not ok then warn("[Arachnid] page FAILED: " .. n .. " | " .. tostring(e)) end
+		end
+
+		local navDefs = {
+			{ "Home", "house", "H" }, { "Editor", "code-xml", "</>" }, { "Library", "folder", "L" }, { "Hub", "globe", "@" },
+			{ "Console", "terminal", ">_" }, { "Themes", "palette", "#" }, { "Settings", "settings", "*" },
+		}
+		local navI = {}
+		for i, d in ipairs(navDefs) do
+			local w = new("TextButton", { Size = UDim2.fromOffset(56, 46), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, LayoutOrder = i }, SB)
+			local ind = new("Frame", { Size = UDim2.fromOffset(3, 24), Position = UDim2.fromOffset(0, 11), BackgroundColor3 = WHITE, BackgroundTransparency = 1, BorderSizePixel = 0 }, w)
+			corner(2, ind) accentG(ind, 90)
+			local ic = icon(d[2], d[3], 16, C.mute, w)
+			ic.f.Position = UDim2.new(0.5, -8, 0, 7)
+			local tl = lbl(d[1], 8, C.mute, { Size = UDim2.new(1, 0, 0, 10), Position = UDim2.fromOffset(0, 28), TextXAlignment = Enum.TextXAlignment.Center }, w)
+			navI[d[1]] = { ic = ic, ind = ind, tl = tl }
+			w.MouseButton1Click:Connect(function() X.switch(d[1]) end)
+		end
+		navSet = function(name)
+			for n, v in pairs(navI) do
+				local on = n == name
+				U.tint(v.ic, on and C.text or C.mute)
+				tw(v.tl, { TextColor3 = on and C.text or C.mute }, 0.15)
+				tw(v.ind, { BackgroundTransparency = on and 0 or 1 }, 0.2)
+			end
+		end
+
+		local function show()
+			U.open = true
+			Win.Visible = true
+			WS.Scale = 0.9
+			Win.Position = UDim2.fromScale(0.5, 0.55)
+			U.setBlur(true)
+			tw(WS, { Scale = 1 }, 0.45, nil, Enum.EasingStyle.Back)
+			tw(Win, { Position = UDim2.fromScale(0.5, 0.5) }, 0.4)
+			TopBar.Size, TopBar.BackgroundTransparency = UDim2.new(0, 0, 0, 2), 0
+			tw(TopBar, { Size = UDim2.new(1, 0, 0, 2) }, 0.5, function() tw(TopBar, { BackgroundTransparency = 1 }, 0.3) end)
+		end
+		local function hide()
+			U.open = false
+			U.setBlur(false)
+			tw(WS, { Scale = 0.9 }, 0.2, function() if not U.open then Win.Visible = false end end)
+		end
+		CloseB.MouseButton1Click:Connect(hide)
+		MinB.MouseButton1Click:Connect(hide)
+		track(Sv.UserInputService.InputBegan:Connect(function(i, gpe)
+			if gpe or i.KeyCode.Name ~= S.key then return end
+			if U.open then hide() else show() end
+		end))
+
+		-- topbar M button (sits next to the native Roblox buttons)
+		local Tog = new("TextButton", { Size = UDim2.fromOffset(40, 40), Text = "", AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 60 }, Root)
+		corner(20, Tog) surf(Tog, 0, C.panel) U.glow(Tog, 2)
+		local tl = new("ImageLabel", { Size = UDim2.new(1, -12, 1, -12), Position = UDim2.fromOffset(6, 6), BackgroundTransparency = 1, Image = K.logo, ScaleType = Enum.ScaleType.Fit, ZIndex = 61 }, Tog)
+		local tsc = new("UIScale", {}, Tog)
+		local dot = new("Frame", { Size = UDim2.fromOffset(9, 9), Position = UDim2.new(1, -9, 0, -1), BorderSizePixel = 0, ZIndex = 62 }, Tog)
+		corner(5, dot) stroke(C.panel, 1.5, dot)
+		bind(dot, "BackgroundColor3", function() return U.open and C.green or C.mute end)
+		function X.placeToggle() Tog.Position = UDim2.fromOffset(S.bx, S.by) end
+		X.placeToggle()
+		Tog.MouseEnter:Connect(function() tw(tsc, { Scale = 1.08 }, 0.12) end)
+		Tog.MouseLeave:Connect(function() tw(tsc, { Scale = 1 }, 0.12) end)
+		Tog.MouseButton1Click:Connect(function() if U.open then hide() else show() end end)
+
+		X.switch("Home")
+		return show
+	end
+
+	-- =================== BOOT ===================
+	local function bootstrap(sub, stages, onDone)
+		local n = #stages
+		local Card = new("Frame", { Size = UDim2.fromOffset(440, 204 + 22 * n), AnchorPoint = V2(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0 }, Backdrop)
+		U.corner(16, Card) U.surf(Card, 0, C.panel) U.glow(Card)
+		local sc = new("UIScale", { Scale = U.vpScale(204 + 22 * n) * 0.92 }, Card)
+		U.tw(Backdrop, { BackgroundTransparency = 0.45 }, 0.3) U.setBlur(true)
+		U.tw(sc, { Scale = U.vpScale(204 + 22 * n) }, 0.45, nil, Enum.EasingStyle.Back)
+		local ring = new("Frame", { Size = UDim2.fromOffset(46, 46), Position = UDim2.fromOffset(18, 14), BackgroundTransparency = 1 }, Card)
+		U.corner(23, ring) U.glow(ring, 3)
+		U.logo(ring, 38, { Position = UDim2.fromOffset(4, 4) })
+		U.lbl("Arachnid", 16, C.text, { Size = UDim2.fromOffset(200, 20), Position = UDim2.fromOffset(74, 16), Font = Enum.Font.GothamBold }, Card)
+		U.lbl("bootstrapper v9  |  " .. sub, 10, C.mute, { Size = UDim2.fromOffset(240, 14), Position = UDim2.fromOffset(74, 38) }, Card)
+		local elapsed = U.lbl("0.0s", 10, C.sub, { Size = UDim2.fromOffset(80, 14), Position = UDim2.new(1, -98, 0, 22), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.Code }, Card)
+		local vzf = new("Frame", { Size = UDim2.new(1, -36, 0, 16), Position = UDim2.fromOffset(18, 68), BackgroundTransparency = 1 }, Card)
+		local vz = U.makeViz(vzf, 48, 3)
+		local t0 = os.clock()
+		local bc = U.track(Sv.RunService.Heartbeat:Connect(function(dt)
+			vz(dt, os.clock(), 0.15)
+			elapsed.Text = string.format("%.1fs", os.clock() - t0)
+		end))
+		local rows = {}
+		for i, s in ipairs(stages) do
+			local y = 92 + (i - 1) * 22
+			local mk = new("Frame", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(20, y + 4), BackgroundColor3 = C.hover, BorderSizePixel = 0 }, Card)
+			U.corner(7, mk)
+			rows[i] = { mk = mk,
+				nameL = U.lbl(s[1], 11, C.mute, { Size = UDim2.fromOffset(200, 22), Position = UDim2.fromOffset(44, y) }, Card),
+				stL = U.lbl("waiting", 10, C.mute, { Size = UDim2.fromOffset(170, 22), Position = UDim2.new(1, -188, 0, y), TextXAlignment = Enum.TextXAlignment.Right }, Card) }
+		end
+		local LB = new("Frame", { Size = UDim2.new(1, -36, 0, 54), Position = UDim2.fromOffset(18, 100 + 22 * n), BackgroundColor3 = C.bg, BackgroundTransparency = 0.3, BorderSizePixel = 0, ClipsDescendants = true }, Card)
+		U.corner(8, LB) U.stroke(C.line, 1, LB) U.pad(8, 8, 4, 4, LB)
+		new("UIListLayout", { SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Bottom }, LB)
+		local ln = 0
+		local function log(msg, col)
+			ln = ln + 1
+			U.lbl("> " .. msg, 9, col or C.sub, { Size = UDim2.new(1, 0, 0, 11), Font = Enum.Font.Code, LayoutOrder = ln, TextTruncate = Enum.TextTruncate.AtEnd }, LB)
+			local kids = {}
+			for _, c in ipairs(LB:GetChildren()) do if c:IsA("TextLabel") then kids[#kids + 1] = c end end
+			table.sort(kids, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
+			while #kids > 4 do table.remove(kids, 1):Destroy() end
+		end
+		local pY = 164 + 22 * n
+		local trk = new("Frame", { Size = UDim2.new(1, -36, 0, 6), Position = UDim2.fromOffset(18, pY), BackgroundColor3 = C.card, BorderSizePixel = 0, ClipsDescendants = true }, Card)
+		U.corner(3, trk)
+		local fill = new("Frame", { Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, trk)
+		U.corner(3, fill) U.accentG(fill, 0)
+		local shim = new("Frame", { Size = UDim2.fromOffset(70, 6), Position = UDim2.fromOffset(-70, 0), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, trk)
+		new("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.65), NumberSequenceKeypoint.new(1, 1) }) }, shim)
+		if S.anim then Sv.TweenService:Create(shim, TweenInfo.new(0.9, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1), { Position = UDim2.fromOffset(404, 0) }):Play() end
+		local taskL = U.lbl("starting", 10, C.sub, { Size = UDim2.new(1, -90, 0, 14), Position = UDim2.fromOffset(18, pY + 12) }, Card)
+		local pctL = U.lbl("0%", 10, C.text, { Size = UDim2.fromOffset(60, 14), Position = UDim2.new(1, -78, 0, pY + 12), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamBold }, Card)
+		task.spawn(function()
+			task.wait(0.4)
+			for i, s in ipairs(stages) do
+				print("[Arachnid] stage: " .. s[1])
+				local r = rows[i]
+				taskL.Text, r.stL.Text = s[1] .. "...", "running"
+				U.tw(r.nameL, { TextColor3 = C.text }, 0.15)
+				U.tw(r.mk, { BackgroundColor3 = U.A1 }, 0.15)
+				local ts = os.clock()
+				local ok, res = pcall(s[2], log)
+				if ok then
+					U.tw(r.mk, { BackgroundColor3 = C.green }, 0.2)
+					r.stL.Text = (type(res) == "string" and (res .. "  |  ") or "") .. string.format("%.1fs", os.clock() - ts)
+					r.stL.TextColor3 = C.sub
+				else
+					U.tw(r.mk, { BackgroundColor3 = C.red }, 0.2)
+					r.stL.Text, r.stL.TextColor3 = "failed", C.red
+					log(tostring(res), C.red)
+					warn("[Arachnid] " .. s[1] .. ": " .. tostring(res))
+				end
+				U.tw(fill, { Size = UDim2.new(i / n, 0, 1, 0) }, 0.35)
+				pctL.Text = math.floor(i / n * 100) .. "%"
+				task.wait(0.18)
+			end
+			taskL.Text, taskL.TextColor3 = "done", C.green
+			task.wait(0.35)
+			bc:Disconnect()
+			U.tw(sc, { Scale = U.vpScale(204 + 22 * n) * 1.05 }, 0.15)
+			task.wait(0.15)
+			Card:Destroy()
+			onDone()
+		end)
+	end
+
+	local function keyGate(done)
+		U.tw(Backdrop, { BackgroundTransparency = 0.45 }, 0.4)
+		U.setBlur(true)
+		local H = 520
+		local Card = new("Frame", { Size = UDim2.fromOffset(420, H), AnchorPoint = V2(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BorderSizePixel = 0 }, Backdrop)
+		U.corner(18, Card) U.surf(Card, 0, C.panel) U.glow(Card)
+		local sc = new("UIScale", { Scale = U.vpScale(H) * 0.9 }, Card)
+		U.tw(sc, { Scale = U.vpScale(H) }, 0.45, nil, Enum.EasingStyle.Back)
+
+		-- header
+		U.logo(Card, 40, { Position = UDim2.fromOffset(20, 18) })
+		U.lbl("Arachnid", 18, C.text, { Size = UDim2.fromOffset(200, 22), Position = UDim2.fromOffset(70, 18), Font = Enum.Font.GothamBold }, Card)
+		U.lbl("Key System", 11, C.sub, { Size = UDim2.fromOffset(200, 14), Position = UDim2.fromOffset(70, 41) }, Card)
+		local tag = new("Frame", { Size = UDim2.fromOffset(56, 20), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -20, 0, 26), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, Card)
+		U.corner(5, tag) U.accentG(tag, 0)
+		U.bind(U.lbl("DELTA", 9, WHITE, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold }, tag), "TextColor3", U.ink)
+
+		-- profile + game strip
+		local strip = new("Frame", { Size = UDim2.new(1, -40, 0, 56), Position = UDim2.fromOffset(20, 70), BorderSizePixel = 0 }, Card)
+		U.corner(12, strip) U.surf(strip, 0.05, C.card)
+		local av = new("ImageLabel", { Size = UDim2.fromOffset(38, 38), Position = UDim2.fromOffset(9, 9), BackgroundColor3 = C.hover, Image = U.avatar, BorderSizePixel = 0 }, strip)
+		U.corner(19, av)
+		U.lbl(lp.DisplayName, 12, C.text, { Size = UDim2.new(0.5, -60, 0, 16), Position = UDim2.fromOffset(54, 10), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, strip)
+		U.lbl("@" .. lp.Name, 10, C.mute, { Size = UDim2.new(0.5, -60, 0, 14), Position = UDim2.fromOffset(54, 29), TextTruncate = Enum.TextTruncate.AtEnd }, strip)
+		local gi = new("ImageLabel", { Size = UDim2.fromOffset(38, 38), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -9, 0, 9), BackgroundColor3 = C.hover, Image = U.game.icon or "", BorderSizePixel = 0, ScaleType = Enum.ScaleType.Crop }, strip)
+		U.corner(9, gi)
+		U.lbl("Playing", 9, C.mute, { Size = UDim2.new(0.5, -60, 0, 12), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -54, 0, 9), TextXAlignment = Enum.TextXAlignment.Right }, strip)
+		U.lbl(U.game.name, 11, C.text, { Size = UDim2.new(0.5, -60, 0, 16), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -54, 0, 23), TextXAlignment = Enum.TextXAlignment.Right, Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, strip)
+
+		-- sound line
+		local vzf = new("Frame", { Size = UDim2.new(1, -40, 0, 30), Position = UDim2.fromOffset(20, 136), BackgroundTransparency = 1 }, Card)
+		local vz = U.makeViz(vzf, 56, 3)
+		local boost = 0
+		local gc = U.track(Sv.RunService.Heartbeat:Connect(function(dt)
+			boost = math.max(0, boost - dt * 2.5)
+			vz(dt, os.clock(), boost)
+		end))
+
+		-- provider cards
+		U.lbl("KEY PROVIDERS", 9, C.mute, { Size = UDim2.new(1, -40, 0, 12), Position = UDim2.fromOffset(20, 176), Font = Enum.Font.GothamBold }, Card)
+		local plist = new("Frame", { Size = UDim2.new(1, -40, 0, 3 * 46), Position = UDim2.fromOffset(20, 192), BackgroundTransparency = 1 }, Card)
+		new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, plist)
+		local sel = 1
+		for i, p in ipairs(K.providers) do
+			local ready = p.key ~= nil or (p.getUrl ~= nil and p.verifyUrl ~= nil)
+			local b = new("TextButton", { Size = UDim2.new(1, 0, 0, 40), Text = "", AutoButtonColor = false, BorderSizePixel = 0, BackgroundColor3 = C.card, LayoutOrder = i }, plist)
+			U.corner(10, b)
+			local st = U.stroke(C.line, 1, b)
+			U.bind(b, "BackgroundColor3", function() return sel == i and U.A1:Lerp(C.bg, 0.78) or T.card end)
+			U.bind(st, "Color", function() return sel == i and U.A1 or T.line end)
+			local rad = new("Frame", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(12, 13), BackgroundColor3 = C.hover, BorderSizePixel = 0 }, b)
+			U.corner(7, rad)
+			local rin = new("Frame", { Size = UDim2.fromOffset(6, 6), Position = UDim2.fromOffset(4, 4), BackgroundColor3 = WHITE, BorderSizePixel = 0 }, rad)
+			U.corner(3, rin)
+			U.bind(rin, "BackgroundTransparency", function() return sel == i and 0 or 1 end)
+			U.lbl(p.name, 12, C.text, { Size = UDim2.new(1, -150, 1, 0), Position = UDim2.fromOffset(34, 0), Font = Enum.Font.GothamBold, TextTruncate = Enum.TextTruncate.AtEnd }, b)
+			local badge = new("Frame", { Size = UDim2.fromOffset(60, 18), AnchorPoint = V2(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0), BackgroundColor3 = ready and C.green or C.yellow, BackgroundTransparency = 0.82, BorderSizePixel = 0 }, b)
+			U.corner(5, badge) U.stroke(ready and C.green or C.yellow, 1, badge).Transparency = 0.6
+			U.lbl(ready and "READY" or "SETUP", 8, ready and C.green or C.yellow, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, Font = Enum.Font.GothamBold }, badge)
+			U.lbl(p.hours and p.hours > 0 and (p.hours .. "h key") or "lifetime", 9, C.mute, { Size = UDim2.fromOffset(60, 40), AnchorPoint = V2(1, 0), Position = UDim2.new(1, -76, 0, 0), TextXAlignment = Enum.TextXAlignment.Right }, b)
+			b.MouseButton1Click:Connect(function() sel = i end)
+		end
+
+		-- key input
+		local box = new("TextBox", { Size = UDim2.new(1, -40, 0, 42), Position = UDim2.fromOffset(20, 342), BackgroundColor3 = C.card, Text = "", PlaceholderText = "paste your key", PlaceholderColor3 = C.mute, TextColor3 = C.text, TextSize = 14, Font = Enum.Font.GothamBold, ClearTextOnFocus = false, BorderSizePixel = 0 }, Card)
+		U.corner(10, box) U.pad(14, 14, 0, 0, box)
+		U.roles[#U.roles + 1] = { o = box, p = "BackgroundColor3", r = "card" }
+		local bst = U.stroke(C.line, 1, box)
+		U.track(box:GetPropertyChangedSignal("Text"):Connect(function() boost = 1 end))
+		local getB = U.btn("Get Key", 12, C.card, C.text, { Size = UDim2.new(0.4, -24, 0, 42), Position = UDim2.fromOffset(20, 394) }, Card)
+		U.stroke(C.line, 1, getB)
+		local go = U.btn("Redeem", 12, WHITE, WHITE, { Size = UDim2.new(0.6, -24, 0, 42), Position = UDim2.new(0.4, 4, 0, 394) }, Card)
+		U.accentG(go, 0) U.bind(go, "TextColor3", U.ink)
+		local status = U.lbl("", 10, C.sub, { Size = UDim2.new(1, -40, 0, 14), Position = UDim2.fromOffset(20, 448), TextXAlignment = Enum.TextXAlignment.Center }, Card)
+		U.lbl("Arachnid  |  Delta core", 9, C.mute, { Size = UDim2.new(1, 0, 0, 12), Position = UDim2.new(0, 0, 1, -22), TextXAlignment = Enum.TextXAlignment.Center }, Card)
+
+		getB.MouseButton1Click:Connect(function()
+			local p = K.providers[sel]
+			if p.getUrl then pcall(setclipboard, p.getUrl) status.Text, status.TextColor3 = "link copied, open it in your browser", C.blue
+			elseif p.key then status.Text, status.TextColor3 = "this key is handed out by the owner", C.sub
+			else status.Text, status.TextColor3 = p.name .. " has no getUrl yet", C.yellow end
+		end)
+		local busy = false
+		local function try()
+			if busy then return end
+			busy = true
+			local v = (box.Text:gsub("%s", ""))
+			local p = K.providers[sel]
+			status.Text, status.TextColor3 = "verifying with " .. p.name .. "...", C.sub
+			task.spawn(function()
+				task.wait(0.4)
+				local ok, msg = redeem(p, v)
+				if ok then
+					status.Text, status.TextColor3 = msg, C.green
+					bst.Color = C.green
+					writeSession(p)
+					task.wait(0.4)
+					gc:Disconnect()
+					U.tw(sc, { Scale = U.vpScale(H) * 0.9 }, 0.25)
+					task.wait(0.25)
+					Card:Destroy()
+					done()
+				else
+					status.Text, status.TextColor3 = msg, C.red
+					bst.Color = C.red
+					boost = 1.5
+					local pos = Card.Position
+					for _, dx in ipairs({ -10, 10, -6, 6, 0 }) do U.tw(Card, { Position = pos + UDim2.fromOffset(dx, 0) }, 0.05) task.wait(0.05) end
+					task.wait(0.4)
+					bst.Color = C.line
+					busy = false
+				end
+			end)
+		end
+		go.MouseButton1Click:Connect(try)
+		box.FocusLost:Connect(function(enter) if enter then try() end end)
+	end
+
+	local reveal, bootErr
+	local stagesA = {
+		{ "Environment", function(log)
+			local have, total, miss = uncCheck()
+			log("executor: " .. tostring(execName), C.sub)
+			log("functions " .. have .. "/" .. total .. (#miss > 0 and (", missing " .. miss[1]) or ""), have / total > 0.7 and C.green or C.yellow)
+			return have .. "/" .. total
+		end },
+		{ "Roblox profile", function(log)
+			local ok = U.fetchGame()
+			log(lp.DisplayName .. " (" .. lp.UserId .. ")", C.sub)
+			log("game: " .. U.game.name, ok and C.green or C.yellow)
+			return ok and "loaded" or "partial"
+		end },
+		{ "Lucide icons", function(log)
+			local n = U.loadIcons()
+			log(n > 0 and (n .. " icons loaded") or "no icons, glyph fallback", n > 0 and C.green or C.yellow)
+			return n .. " icons"
+		end },
+		{ "Providers", function(log)
+			local pending, okc = 0, 0
+			for _, id in ipairs(U.PORDER) do
+				if id ~= "files" then
+					pending = pending + 1
+					task.spawn(function()
+						local ok = pcall(P[id].fetch, "", 1)
+						U.pstat[id] = ok
+						if ok then okc = okc + 1 end
+						log(P[id].name .. (ok and " online" or " unavailable"), ok and C.green or C.red)
+						pending = pending - 1
+					end)
+				end
+			end
+			local t0 = os.clock()
+			while pending > 0 and os.clock() - t0 < 6 do task.wait(0.1) end
+			return okc .. " online"
+		end },
+	}
+	local stagesC = {
+		{ "Session", function(log)
+			log("expires: " .. U.expText(), C.sub)
+			return U.expText()
+		end },
+		{ "Interface", function(log)
+			local ok, r = pcall(build)
+			if not ok then bootErr = tostring(r) error(r, 0) end
+			reveal = r
+			log("window and pages built", C.green)
+			return "built"
+		end },
+		{ "Launch", function(log)
+			log(reveal and ("ready, toggle key " .. S.key) or "interface missing", reveal and C.green or C.red)
+			task.wait(0.15)
+		end },
+	}
+	bootstrap("startup", stagesA, function()
+		keyGate(function()
+			bootstrap("launch", stagesC, function()
+				if reveal then
+					U.tw(Backdrop, { BackgroundTransparency = 1 }, 0.4, function() Backdrop:Destroy() end)
+					reveal()
+				else
+					U.fatal(bootErr or "build returned nothing")
+				end
+			end)
+		end)
+	end)
+end
+
+local ok, err = xpcall(main, debug.traceback)
+if not ok then
+	warn("[Arachnid] fatal: " .. tostring(err))
+	pcall(function()
+		local g = Instance.new("ScreenGui")
+		g.ResetOnSpawn = false
+		g.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+		local t = Instance.new("TextLabel")
+		t.Size, t.Position, t.BackgroundColor3, t.TextColor3 = UDim2.fromOffset(460, 220), UDim2.fromOffset(20, 60), Color3.fromRGB(20, 20, 24), Color3.fromRGB(255, 120, 120)
+		t.TextWrapped, t.TextXAlignment, t.TextYAlignment, t.TextSize, t.Font = true, Enum.TextXAlignment.Left, Enum.TextYAlignment.Top, 11, Enum.Font.Code
+		t.Text = "Arachnid fatal:\n" .. tostring(err):sub(1, 900)
+		t.Parent = g
+		task.delay(30, function() g:Destroy() end)
+	end)
+end
